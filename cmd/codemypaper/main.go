@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
+	"codemypaper/internal/agent"
 	"codemypaper/internal/llm"
+	"codemypaper/internal/tools"
 	"github.com/spf13/cobra"
 )
 
@@ -31,15 +34,25 @@ func runCmd() *cobra.Command {
 			client := llm.NewOllama(ollamaModel)
 			fmt.Println("LLM backend:", client.Name())
 
-			reply, err := client.Chat(cmd.Context(), []llm.Message{
-				{Role: llm.RoleSystem, Content: "You are a helpful assistant that generates runnable code from arXiv papers."},
-				{Role: llm.RoleUser, Content: fmt.Sprintf("Please generate a runnable implementation for the paper at %s", args[0])},
-			})
-			if err != nil {
+			// Temporary scratch run to exercise the loop end-to-end (M2).
+			// The real paper-driven prompt arrives in M3.
+			out := "./out/scratch"
+			if err := os.MkdirAll(out, 0o755); err != nil {
 				return err
 			}
-			fmt.Println("LLM reply:", reply)
-			return nil
+
+			reg := tools.NewRegistry()
+			reg.Register(tools.WriteFile{BaseDir: out})
+			reg.Register(tools.ReadFile{BaseDir: out})
+			reg.Register(tools.RunCommand{BaseDir: out, Timeout: 120 * time.Second})
+
+			ag := &agent.Agent{LLM: client, Tools: reg, MaxIters: 6, Verbose: true}
+			sys := "You can call tools by emitting exactly one ```json block, e.g. " +
+				"```json\n{\"tool\":\"write_file\",\"args\":{\"path\":\"hello.py\",\"content\":\"print('hi')\"}}\n```\n" +
+				"Available tools:\n" + reg.Descriptions() +
+				"When the task is complete, emit ```json\n{\"tool\":\"finish\",\"args\":{\"summary\":\"...\"}}\n```"
+			return ag.Run(cmd.Context(), sys,
+				"Write hello.py that prints hi, run it with `python3 hello.py`, then finish.")
 		},
 	}
 	cmd.Flags().StringVar(&ollamaModel, "ollama-model", "qwen2.5-coder:3b", "local model id")
