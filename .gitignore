@@ -1,7 +1,3 @@
-Go_notes.md
-DESIGN.md
-*.md
-
 # generated output, build artifacts, python env
 out/
 bin/

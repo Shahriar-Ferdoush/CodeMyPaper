@@ -3,7 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
-	"strings"
+	"sort"
 )
 
 type Result struct {
@@ -18,26 +18,42 @@ type Tool interface {
 	Run(ctx context.Context, args map[string]any) (Result, error)
 }
 
-type Registry struct{ tools map[string]Tool }
-
-func NewRegistry() *Registry {
-	return &Registry{tools: map[string]Tool{}}
+type Registry struct {
+	tools map[string]Tool
 }
 
-func (r *Registry) Register(t Tool) { r.tools[t.Name()] = t }
+func NewRegistry() *Registry {
+	return &Registry{tools: make(map[string]Tool)}
+}
+
+func (r *Registry) Register(t Tool) {
+	name := t.Name()
+	if _, exists := r.tools[name]; exists {
+		panic(fmt.Sprintf("tools: duplicate registration for %q", name))
+	}
+	r.tools[name] = t
+}
 
 func (r *Registry) Run(ctx context.Context, name string, args map[string]any) (Result, error) {
 	t, ok := r.tools[name]
 	if !ok {
-		return Result{IsError: true, Output: "unknown tool: " + name}, nil
+		return Result{
+			Output:  fmt.Sprintf("unknown tool: %q", name),
+			IsError: true,
+		}, nil
 	}
-	return t.Run(ctx, args)
+	res, err := t.Run(ctx, args)
+	if err != nil {
+		return Result{Output: err.Error(), IsError: true}, nil
+	}
+	return res, nil
 }
 
-func (r *Registry) Descriptions() string {
-	var b strings.Builder
+func (r *Registry) Tools() []Tool {
+	out := make([]Tool, 0, len(r.tools))
 	for _, t := range r.tools {
-		fmt.Fprintf(&b, "- %s: %s\n", t.Name(), t.Description())
+		out = append(out, t)
 	}
-	return b.String()
+	sort.Slice(out, func(i, j int) bool { return out[i].Name() < out[j].Name() })
+	return out
 }
