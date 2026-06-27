@@ -26,6 +26,10 @@ func safeJoin(base, rel string) (string, error) {
 	return full, nil
 }
 
+// maxOutputBytes caps tool output fed back as an observation, protecting the
+// context window (NFR4). Shared by read_file and run_command.
+const maxOutputBytes = 20000
+
 func capOutput(s string, max int) string {
 	if len(s) <= max {
 		return s

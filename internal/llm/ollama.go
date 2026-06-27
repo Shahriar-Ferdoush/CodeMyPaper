@@ -26,7 +26,7 @@ func NewOllama(model string) *Ollama {
 }
 
 func (o *Ollama) Name() string {
-	return "Ollama: " + o.Model
+	return "ollama:" + o.Model
 }
 
 // Wire types - How Ollama's /api/chat wants JSON.
@@ -71,9 +71,9 @@ func (o *Ollama) Chat(ctx context.Context, messages []Message) (string, error) {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("ollama unreachable (Is the Ollama server running?): %w", err)
+		return "", fmt.Errorf("%w: ollama (is the server running?): %v", ErrBackendUnreachable, err)
 	}
 	defer resp.Body.Close()
 

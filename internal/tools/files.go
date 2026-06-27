@@ -45,5 +45,5 @@ func (r ReadFile) Run(_ context.Context, args map[string]any) (Result, error) {
 	if err != nil {
 		return Result{IsError: true, Output: err.Error()}, nil
 	}
-	return Result{Output: capOutput(string(b), 20000)}, nil
+	return Result{Output: capOutput(string(b), maxOutputBytes)}, nil
 }

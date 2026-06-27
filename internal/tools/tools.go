@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -35,8 +36,17 @@ func (r *Registry) Run(ctx context.Context, name string, args map[string]any) (R
 }
 
 func (r *Registry) Descriptions() string {
+	// Sort by name so the system prompt is deterministic across runs
+	// (map iteration order is randomized).
+	names := make([]string, 0, len(r.tools))
+	for name := range r.tools {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
 	var b strings.Builder
-	for _, t := range r.tools {
+	for _, name := range names {
+		t := r.tools[name]
 		fmt.Fprintf(&b, "- %s: %s\n", t.Name(), t.Description())
 	}
 	return b.String()
