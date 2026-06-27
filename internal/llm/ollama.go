@@ -29,7 +29,7 @@ func (o *Ollama) Name() string {
 	return "Ollama: " + o.Model
 }
 
-// Wire types - How Ollama's /api/chat wants JSON.
+// Wire types: the JSON shape Ollama's /api/chat expects and returns.
 type ollamaMsg struct {
 	Role    Role   `json:"role"`
 	Content string `json:"content"`

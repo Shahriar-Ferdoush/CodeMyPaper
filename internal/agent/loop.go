@@ -5,47 +5,98 @@ import (
 	"fmt"
 
 	"codemypaper/internal/llm"
+	"codemypaper/internal/log"
 	"codemypaper/internal/tools"
 )
 
-type Agent struct {
-	LLM      llm.LLMClient
-	Tools    *tools.Registry
+type Config struct {
 	MaxIters int
-	Verbose  bool
+}
+
+type Outcome struct {
+	Success    bool
+	Iterations int
+	StopReason string
+	Summary    string
+	Method     string
+	Entrypoint string
+}
+
+// Agent wires a chat backend to a set of tools and drives the loop.
+type Agent struct {
+	llm llm.LLMClient
+	reg *tools.Registry
+	cfg Config
+	log *log.Logger
+}
+
+func New(client llm.LLMClient, reg *tools.Registry, cfg Config, logger *log.Logger) *Agent {
+	return &Agent{llm: client, reg: reg, cfg: cfg, log: logger}
 }
 
 // Run drives the act→observe→recover loop: ask the model, parse its tool call,
 // run the tool, feed the observation back, repeat until finish or max-iters.
-func (a *Agent) Run(ctx context.Context, systemPrompt, task string) error {
-	msgs := []llm.Message{
+func (a *Agent) Run(ctx context.Context, systemPrompt, task string) (Outcome, error) {
+	messages := []llm.Message{
 		{Role: llm.RoleSystem, Content: systemPrompt},
 		{Role: llm.RoleUser, Content: task},
 	}
-	for i := 1; i <= a.MaxIters; i++ {
-		raw, err := a.LLM.Chat(ctx, msgs)
+
+	for iter := 1; iter <= a.cfg.MaxIters; iter++ {
+		a.log.Debugf("iteration %d/%d", iter, a.cfg.MaxIters)
+
+		raw, err := a.llm.Chat(ctx, messages)
 		if err != nil {
-			return err
+			return Outcome{Iterations: iter, StopReason: "fatal_error"}, fmt.Errorf("chat: %w", err)
 		}
-		msgs = append(msgs, llm.Message{Role: llm.RoleAssistant, Content: raw})
-		if a.Verbose {
-			fmt.Printf("\n--- iter %d ---\n%s\n", i, raw)
-		}
+		messages = append(messages, llm.Message{Role: llm.RoleAssistant, Content: raw})
 
 		call, perr := parseToolCall(raw)
-		if perr != nil { // malformed → one corrective re-prompt (counts against max-iters)
-			msgs = append(msgs, llm.Message{Role: llm.RoleUser,
-				Content: "Your reply had no valid tool call. Reply with exactly one ```json {\"tool\":...,\"args\":...}``` block."})
+		if perr != nil {
+			a.log.Debugf("malformed turn: %v", perr)
+			messages = append(messages, llm.Message{Role: llm.RoleUser, Content: protocolReminder(perr)})
 			continue
 		}
-		if call.Tool == "finish" {
-			fmt.Println("\n✅ finished:", call.Args["summary"])
-			return nil
+
+		if call.Name == "finish" {
+			a.log.Infof("agent finished after %d iteration(s)", iter)
+			return Outcome{
+				Success:    true,
+				Iterations: iter,
+				StopReason: "finished",
+				Summary:    argOrEmpty(call.Args, "summary"),
+				Method:     argOrEmpty(call.Args, "method"),
+				Entrypoint: argOrEmpty(call.Args, "entrypoint"),
+			}, nil
 		}
-		res, _ := a.Tools.Run(ctx, call.Tool, call.Args)
-		obs := fmt.Sprintf("Observation from %s (exit=%d, error=%v):\n%s", call.Tool, res.ExitCode, res.IsError, res.Output)
-		msgs = append(msgs, llm.Message{Role: llm.RoleUser, Content: obs})
+
+		res, _ := a.reg.Run(ctx, call.Name, call.Args) // act
+		a.log.Debugf("tool %s -> isError=%v exit=%d", call.Name, res.IsError, res.ExitCode)
+		messages = append(messages, llm.Message{Role: llm.RoleUser, Content: observation(call.Name, res)}) // observe
 	}
-	fmt.Println("\n⏹ stopped: max iterations reached")
-	return nil
+
+	a.log.Infof("agent stopped: reached max iterations (%d)", a.cfg.MaxIters)
+	return Outcome{Iterations: a.cfg.MaxIters, StopReason: "max_iters"}, nil
+}
+
+func argOrEmpty(args map[string]any, key string) string {
+	if s, ok := args[key].(string); ok {
+		return s
+	}
+	return ""
+}
+
+// protocolReminder is the single corrective message sent after a malformed turn.
+func protocolReminder(err error) string {
+	return fmt.Sprintf("Your previous reply could not be parsed as a tool call (%v). "+
+		"Reply with exactly one ```json block containing a \"tool\" field and an \"args\" object, and nothing else after it.", err)
+}
+
+// observation renders a tool Result as the user-role message the model reads next.
+func observation(toolName string, res tools.Result) string {
+	status := "ok"
+	if res.IsError {
+		status = "error"
+	}
+	return fmt.Sprintf("[observation of %s | status=%s | exit=%d]\n%s", toolName, status, res.ExitCode, res.Output)
 }
