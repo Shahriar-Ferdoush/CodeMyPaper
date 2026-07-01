@@ -5,23 +5,6 @@
 > [`PROJECT-BRIEF.md`](./PROJECT-BRIEF.md). §10 is the definition of done — every box checkable against
 > behavior, not code shape.
 
-## 0. Why this spec is small on purpose (read this first)
-
-This project is a **CV centerpiece I must defend decision-by-decision in an interview**, not a feature race.
-Two principles bind every requirement below:
-
-- **No AI slop.** Nothing is in scope unless I understand it and chose it deliberately. Generated-looking
-  breadth with no rationale is _worse_ than a smaller system I can explain end to end. If I can't defend a
-  feature to a sharp interviewer — including the alternative I rejected and why — it does not belong in v1.
-- **Depth over breadth.** v1 deliberately has _few_ features. Each one carries a real spec (this doc), a
-  deliberate design with stated rationale (`DESIGN.md`), and clean, tested Go. A narrow system done
-  rigorously beats a sprawling one done shallowly. The scope below was _cut down_ from a larger draft for
-  exactly this reason — see §8 (Deferred) for what was deliberately pushed out and why that is a strength,
-  not a gap.
-
-An interviewer will ask "why did you build _this_ and not that?" — so the answer "I scoped it to what I could
-build well and defend" is itself a designed, defensible decision.
-
 ## 1. Overview
 
 `codemypaper` is a Go terminal agent that takes an arXiv ML paper, extracts its **core method**, and
