@@ -9,14 +9,16 @@ import (
 	"codemypaper/internal/tools"
 )
 
+// Config holds the agent loop's tunables.
 type Config struct {
 	MaxIters int
 }
 
+// Outcome is the result of a full agent run.
 type Outcome struct {
 	Success    bool
 	Iterations int
-	StopReason string
+	StopReason string // "finished" | "max_iters" | "fatal_error"
 	Summary    string
 	Method     string
 	Entrypoint string
@@ -30,12 +32,21 @@ type Agent struct {
 	log *log.Logger
 }
 
+// New creates an Agent from a chat backend, tool registry, config, and logger.
 func New(client llm.LLMClient, reg *tools.Registry, cfg Config, logger *log.Logger) *Agent {
 	return &Agent{llm: client, reg: reg, cfg: cfg, log: logger}
 }
 
-// Run drives the act→observe→recover loop: ask the model, parse its tool call,
-// run the tool, feed the observation back, repeat until finish or max-iters.
+// Run drives the act→observe→recover loop: ask the model, parse its tool call, run the
+// tool, feed the observation back, repeat until finish or max-iters.
+// Input:
+//   - ctx: context.Context for cancellation and deadlines
+//   - systemPrompt: the rendered system prompt (see BuildSystemPrompt)
+//   - task: the first user-role message that kicks off the loop
+//
+// Output:
+//   - Outcome: how the loop ended
+//   - error: non-nil only on a fatal chat backend failure
 func (a *Agent) Run(ctx context.Context, systemPrompt, task string) (Outcome, error) {
 	messages := []llm.Message{
 		{Role: llm.RoleSystem, Content: systemPrompt},
@@ -70,9 +81,9 @@ func (a *Agent) Run(ctx context.Context, systemPrompt, task string) (Outcome, er
 			}, nil
 		}
 
-		res, _ := a.reg.Run(ctx, call.Name, call.Args) // act
+		res, _ := a.reg.Run(ctx, call.Name, call.Args)
 		a.log.Debugf("tool %s -> isError=%v exit=%d", call.Name, res.IsError, res.ExitCode)
-		messages = append(messages, llm.Message{Role: llm.RoleUser, Content: observation(call.Name, res)}) // observe
+		messages = append(messages, llm.Message{Role: llm.RoleUser, Content: observation(call.Name, res)})
 	}
 
 	a.log.Infof("agent stopped: reached max iterations (%d)", a.cfg.MaxIters)

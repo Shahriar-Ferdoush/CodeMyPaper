@@ -27,6 +27,7 @@ type WriteFile struct {
 	log  *log.Logger
 }
 
+// NewWriteFile creates a write_file tool jailed to base.
 func NewWriteFile(base string, logger *log.Logger) *WriteFile {
 	return &WriteFile{base: base, log: logger}
 }
@@ -37,6 +38,12 @@ func (w *WriteFile) Description() string {
 	return `write_file: create or overwrite a file in the output directory. args: {"path": string, "content": string}`
 }
 
+// Run creates or overwrites args["path"] under the jail base with args["content"].
+// Input:
+//   - args: {"path": string, "content": string}
+//
+// Output:
+//   - Result: IsError set on a missing/invalid arg, a path outside the jail, or a write failure
 func (w *WriteFile) Run(_ context.Context, args map[string]any) (Result, error) {
 	path, err := argString(args, "path")
 	if err != nil {
@@ -66,6 +73,7 @@ type ReadFile struct {
 	log  *log.Logger
 }
 
+// NewReadFile creates a read_file tool jailed to base.
 func NewReadFile(base string, logger *log.Logger) *ReadFile {
 	return &ReadFile{base: base, log: logger}
 }
@@ -76,6 +84,13 @@ func (r *ReadFile) Description() string {
 	return `read_file: read a file from the output directory. args: {"path": string}`
 }
 
+// Run reads args["path"] from under the jail base.
+// Input:
+//   - args: {"path": string}
+//
+// Output:
+//   - Result: the file contents (capped), or IsError set on a missing/invalid arg, a path
+//     outside the jail, or a read failure
 func (r *ReadFile) Run(_ context.Context, args map[string]any) (Result, error) {
 	path, err := argString(args, "path")
 	if err != nil {

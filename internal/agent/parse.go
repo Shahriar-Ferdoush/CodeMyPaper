@@ -14,6 +14,13 @@ type ToolCall struct {
 
 var jsonBlock = regexp.MustCompile("(?s)```json\\s*(.*?)```")
 
+// parseToolCall extracts the model's tool call from its raw reply.
+// Input:
+//   - raw: the model's full reply text
+//
+// Output:
+//   - ToolCall: parsed from the LAST ```json block in raw
+//   - error: if no block is found, it isn't valid JSON, or "tool" is missing
 func parseToolCall(raw string) (ToolCall, error) {
 	matches := jsonBlock.FindAllStringSubmatch(raw, -1)
 	if len(matches) == 0 {

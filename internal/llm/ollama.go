@@ -9,11 +9,14 @@ import (
 	"os"
 )
 
+// Ollama is an LLMClient backed by a local Ollama server's /api/chat endpoint.
 type Ollama struct {
 	Host  string
 	Model string
 }
 
+// NewOllama creates an Ollama client for the given local model id, reading the host
+// from OLLAMA_HOST (default http://localhost:11434).
 func NewOllama(model string) *Ollama {
 	host := os.Getenv("OLLAMA_HOST")
 	if host == "" {
@@ -25,11 +28,12 @@ func NewOllama(model string) *Ollama {
 	}
 }
 
+// Name returns a human-readable identifier for this backend, used in logs.
 func (o *Ollama) Name() string {
 	return "Ollama: " + o.Model
 }
 
-// Wire types: the JSON shape Ollama's /api/chat expects and returns.
+// ollamaMsg, ollamaReq, ollamaResp are the JSON shapes Ollama's /api/chat expects and returns.
 type ollamaMsg struct {
 	Role    Role   `json:"role"`
 	Content string `json:"content"`
@@ -45,8 +49,14 @@ type ollamaResp struct {
 	Message ollamaMsg `json:"message"`
 }
 
-// Chat function - LLMClient interface implementation for Ollama.
-// Sends a chat request to the Ollama server and returns the assistant's reply.
+// Chat sends messages to the Ollama server's /api/chat endpoint and returns the reply text.
+// Input:
+//   - ctx: context.Context for cancellation and deadlines
+//   - messages: the conversation so far
+//
+// Output:
+//   - string: the model's reply text
+//   - error: on a marshal/request/decode failure or a non-200 response
 func (o *Ollama) Chat(ctx context.Context, messages []Message) (string, error) {
 	msgs := make([]ollamaMsg, len(messages))
 	for i, m := range messages {

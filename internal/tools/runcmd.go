@@ -11,18 +11,21 @@ import (
 	"codemypaper/internal/log"
 )
 
+// allowedCommands is the executable allowlist run_command enforces.
 var allowedCommands = map[string]bool{
 	"python": true, "python3": true,
 	"pip": true, "pip3": true,
 	"ls": true, "cat": true, "pytest": true,
 }
 
+// RunCommand runs one allowlisted command in the jail base directory, with a timeout.
 type RunCommand struct {
 	base    string
 	timeout time.Duration
 	log     *log.Logger
 }
 
+// NewRunCommand creates a run_command tool jailed to base with a per-command timeout.
 func NewRunCommand(base string, timeout time.Duration, logger *log.Logger) *RunCommand {
 	return &RunCommand{base: base, timeout: timeout, log: logger}
 }
@@ -34,6 +37,14 @@ func (c *RunCommand) Description() string {
 		`in the output directory. args: {"cmd": string}`
 }
 
+// Run executes args["cmd"] in the jail base directory if its executable is allowlisted.
+// Input:
+//   - ctx: context.Context; combined with the tool's configured timeout
+//   - args: {"cmd": string}
+//
+// Output:
+//   - Result: combined stdout/stderr (capped) and exit code; IsError set on a
+//     disallowed command, timeout, or non-zero exit
 func (c *RunCommand) Run(ctx context.Context, args map[string]any) (Result, error) {
 	cmdStr, err := argString(args, "cmd")
 	if err != nil {
@@ -57,7 +68,7 @@ func (c *RunCommand) Run(ctx context.Context, args map[string]any) (Result, erro
 
 	cmd := exec.CommandContext(runCtx, exe, fields[1:]...)
 	cmd.Dir = c.base
-	
+
 	out, runErr := cmd.CombinedOutput()
 	capped := capOutput(string(out), defaultMaxOutput)
 
