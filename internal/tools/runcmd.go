@@ -34,7 +34,26 @@ func (c *RunCommand) Name() string { return "run_command" }
 
 func (c *RunCommand) Description() string {
 	return `run_command: run one allowlisted command (python(3), pip(3), ls, cat, pytest) ` +
-		`in the output directory. args: {"cmd": string}`
+		`in the output directory. args: {"cmd": string}. No shell: the command is split on ` +
+		`whitespace, so quoting is not supported — write a script file and run it instead of ` +
+		`inline -c one-liners. Path arguments must stay inside the output directory: ` +
+		`no absolute paths, no "..".`
+}
+
+// checkArgsJailed rejects arguments that could reach outside the jail: absolute paths
+// and anything containing "..". Mirrors the rule safeJoin enforces for the file tools —
+// without it, "cat ../secret" escapes via cwd-relative traversal even though cmd.Dir
+// is jailed.
+func checkArgsJailed(args []string) error {
+	for _, a := range args {
+		if strings.HasPrefix(a, "/") {
+			return fmt.Errorf("argument %q: absolute paths are not allowed", a)
+		}
+		if strings.Contains(a, "..") {
+			return fmt.Errorf("argument %q: paths containing \"..\" are not allowed", a)
+		}
+	}
+	return nil
 }
 
 // Run executes args["cmd"] in the jail base directory if its executable is allowlisted.
@@ -61,6 +80,9 @@ func (c *RunCommand) Run(ctx context.Context, args map[string]any) (Result, erro
 			Output:  fmt.Sprintf("command %q is not allowed; allowed: python(3), pip(3), ls, cat, pytest", exe),
 			IsError: true,
 		}, nil
+	}
+	if err := checkArgsJailed(fields[1:]); err != nil {
+		return Result{Output: err.Error(), IsError: true}, nil
 	}
 
 	runCtx, cancel := context.WithTimeout(ctx, c.timeout)

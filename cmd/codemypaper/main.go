@@ -93,6 +93,23 @@ func runCmd() *cobra.Command {
 				return exitErr(3, fmt.Errorf("create out dir: %w", err))
 			}
 
+			// Persist the run's log next to its other artifacts; a failure here
+			// defeats the file record but must never fail the run itself.
+			if err := logger.AttachFile(filepath.Join(outDir, "run.log")); err != nil {
+				logger.Errorf("could not attach log file: %v", err)
+			}
+			defer logger.Close()
+
+			// Persist the exact fetched source (paper.html / paper.tar.gz) for inspection;
+			// best-effort — the run doesn't depend on it.
+			if len(paper.Raw) > 0 {
+				if err := os.WriteFile(filepath.Join(outDir, paper.RawName), paper.Raw, 0o644); err != nil {
+					logger.Warnf("could not save fetched source: %v", err)
+				} else {
+					logger.Infof("saved fetched source to %s", filepath.Join(outDir, paper.RawName))
+				}
+			}
+
 			reg := tools.NewRegistry()
 			reg.Register(tools.NewWriteFile(outDir, logger))
 			reg.Register(tools.NewReadFile(outDir, logger))
@@ -103,6 +120,9 @@ func runCmd() *cobra.Command {
 			a := agent.New(client, reg, agent.Config{MaxIters: maxIters}, logger)
 			outcome, err := a.Run(ctx, agent.BuildSystemPrompt(reg, paper, maxContextChars), agent.FirstUserMessage(paper))
 			if err != nil {
+				// Cobra prints the error to stderr only; record it in run.log too,
+				// since a failed run is exactly when the file record matters.
+				logger.Errorf("run failed: %v", err)
 				return classifyRunError(err)
 			}
 
