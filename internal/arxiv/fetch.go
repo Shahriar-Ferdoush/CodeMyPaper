@@ -32,9 +32,9 @@ var (
 	arxivAPIBase  = "https://export.arxiv.org/api/query?id_list="
 )
 
-// Fetch resolves idOrURL and builds a Paper from the first source in the ladder that
-// yields sections: arxiv.org/html → ar5iv mirror → e-print tarball. Title and abstract
-// always come from the arXiv API as a backstop.
+// Resolves idOrURL and builds a Paper from the first source in the ladder
+// that yields sections: arxiv.org/html → ar5iv mirror → e-print tarball.
+// Title and abstract always come from the arXiv API as a backstop.
 // Input:
 //   - ctx: context.Context for cancellation and deadlines
 //   - idOrURL: a bare arXiv id or any /abs//pdf//html//e-print/ URL form
@@ -50,13 +50,12 @@ func Fetch(ctx context.Context, idOrURL string) (*Paper, error) {
 
 	p := &Paper{ID: id}
 
-	// Fetch title + abstract from the arXiv API, even if we later get sections from a different source.
+	// Title + abstract from the arXiv API, even if sections come from a different source.
 	if title, abstract, err := fetchMeta(ctx, id); err == nil {
 		p.Title, p.Abstract = title, abstract
 	}
 
-	// Try sources in order:
-	// 	- arxiv.org HTML (LaTeXML) → ar5iv mirror → e-print tarball
+	// Try sources in order: arxiv.org HTML (LaTeXML) → ar5iv mirror → e-print tarball.
 	if secs, raw, err := fetchHTMLSections(ctx, arxivHTMLBase+id); err == nil && len(secs) > 0 {
 		p.Sections, p.Source = secs, "arxiv-html"
 		p.Raw, p.RawName = raw, "paper.html"
@@ -77,8 +76,16 @@ func Fetch(ctx context.Context, idOrURL string) (*Paper, error) {
 	return p, nil
 }
 
-// fetchHTMLSections GETs a LaTeXML HTML page and extracts its sections, also returning
-// the raw page bytes so the caller can persist the exact fetched source.
+// GETs a LaTeXML HTML page and extracts its sections, also returning the raw
+// page bytes so the caller can persist the exact fetched source.
+// Input:
+//   - ctx: context.Context for cancellation and deadlines
+//   - pageURL: the HTML page to fetch
+//
+// Output:
+//   - []Section: the parsed sections
+//   - []byte: the raw page bytes, for persisting
+//   - error: on a failed GET
 func fetchHTMLSections(ctx context.Context, pageURL string) ([]Section, []byte, error) {
 	body, err := httpGet(ctx, pageURL)
 	if err != nil {
@@ -87,8 +94,15 @@ func fetchHTMLSections(ctx context.Context, pageURL string) ([]Section, []byte, 
 	return htmlToSections(string(body)), body, nil
 }
 
-// fetchMeta pulls title + abstract from the arXiv Atom API. Both fields carry the LaTeX
+// Pulls title + abstract from the arXiv Atom API. Both fields carry the LaTeX
 // source's line-wrapping (stray newlines/spaces), so they're whitespace-collapsed.
+// Input:
+//   - ctx: context.Context for cancellation and deadlines
+//   - id: the canonical arXiv id
+//
+// Output:
+//   - title, abstract: whitespace-collapsed text
+//   - error: on a failed GET, decode failure, or no matching entry
 func fetchMeta(ctx context.Context, id string) (title, abstract string, err error) {
 	api := arxivAPIBase + url.QueryEscape(id)
 	body, err := httpGet(ctx, api)
@@ -110,7 +124,14 @@ func fetchMeta(ctx context.Context, id string) (title, abstract string, err erro
 	return collapseWS(feed.Entries[0].Title), collapseWS(feed.Entries[0].Summary), nil
 }
 
-// httpGet performs a context-aware GET with the tool's User-Agent and reads a capped body.
+// Performs a context-aware GET with the tool's User-Agent and reads a capped body.
+// Input:
+//   - ctx: context.Context for cancellation and deadlines
+//   - target: the URL to GET
+//
+// Output:
+//   - []byte: the response body, capped at maxBodyBytes
+//   - error: on a request failure or a non-200 status
 func httpGet(ctx context.Context, target string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {

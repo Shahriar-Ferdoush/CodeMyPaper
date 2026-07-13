@@ -11,9 +11,9 @@ type CachedMeta struct {
 	Abstract string `json:"abstract"`
 }
 
-// FromCache rebuilds a Paper from a previously-persisted raw source and its sidecar
-// metadata, re-running the same pure parse step Fetch would have used for that rung.
-// No network calls.
+// Rebuilds a Paper from a previously-persisted raw source and its sidecar
+// metadata, re-running the same pure parse step Fetch would have used for
+// that rung. No network calls.
 // Input:
 //   - id: the canonical arXiv id
 //   - meta: the sidecar metadata (source, raw filename, title, abstract)

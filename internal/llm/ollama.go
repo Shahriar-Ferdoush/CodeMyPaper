@@ -15,7 +15,7 @@ type Ollama struct {
 	Model string
 }
 
-// NewOllama creates an Ollama client for the given local model id, reading the host
+// Creates an Ollama client for the given local model id, reading the host
 // from OLLAMA_HOST (default http://localhost:11434).
 func NewOllama(model string) *Ollama {
 	host := os.Getenv("OLLAMA_HOST")
@@ -28,7 +28,7 @@ func NewOllama(model string) *Ollama {
 	}
 }
 
-// Name returns a human-readable identifier for this backend, used in logs.
+// Returns a human-readable identifier for this backend, used in logs.
 func (o *Ollama) Name() string {
 	return "Ollama: " + o.Model
 }
@@ -49,7 +49,7 @@ type ollamaResp struct {
 	Message ollamaMsg `json:"message"`
 }
 
-// Chat sends messages to the Ollama server's /api/chat endpoint and returns the reply text.
+// Sends messages to the Ollama server's /api/chat endpoint and returns the reply text.
 // Input:
 //   - ctx: context.Context for cancellation and deadlines
 //   - messages: the conversation so far

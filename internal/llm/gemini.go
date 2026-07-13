@@ -31,7 +31,7 @@ type Gemini struct {
 	client  *http.Client
 }
 
-// NewGemini creates a Gemini client for the given hosted model id, reading the API key
+// Creates a Gemini client for the given hosted model id, reading the API key
 // from GEMINI_API_KEY.
 func NewGemini(model string) *Gemini {
 	return &Gemini{
@@ -42,7 +42,7 @@ func NewGemini(model string) *Gemini {
 	}
 }
 
-// Name returns a human-readable identifier for this backend, used in logs.
+// Returns a human-readable identifier for this backend, used in logs.
 func (g *Gemini) Name() string { return "Gemini: " + g.Model }
 
 // geminiPart, geminiContent, geminiReq, geminiResp are the JSON shapes the
@@ -72,7 +72,7 @@ type geminiResp struct {
 	} `json:"error"`
 }
 
-// Chat sends messages to the generateContent endpoint and returns the reply text.
+// Sends messages to the generateContent endpoint and returns the reply text.
 // Input:
 //   - ctx: context.Context for cancellation and deadlines
 //   - messages: the conversation so far
@@ -132,9 +132,9 @@ func (g *Gemini) Chat(ctx context.Context, messages []Message) (string, error) {
 	return out.Candidates[0].Content.Parts[0].Text, nil
 }
 
-// foldMessages maps provider-neutral Messages to Gemini contents: accumulated system text
-// is prepended to the next user turn (or becomes its own trailing user turn if none
-// follows), and assistant turns map to role "model".
+// Maps provider-neutral Messages to Gemini contents: accumulated system text
+// is prepended to the next user turn (or becomes its own trailing user turn
+// if none follows), and assistant turns map to role "model".
 // Input:
 //   - messages: the provider-neutral conversation
 //
@@ -171,6 +171,7 @@ func foldMessages(messages []Message) []geminiContent {
 	return contents
 }
 
+// Returns the API's error message, or a placeholder if none was set.
 func errMessage(r geminiResp) string {
 	if r.Error != nil {
 		return r.Error.Message
@@ -178,6 +179,7 @@ func errMessage(r geminiResp) string {
 	return "no error detail"
 }
 
+// Returns the first candidate's finish reason, or "none" if there were no candidates.
 func finishReason(r geminiResp) string {
 	if len(r.Candidates) > 0 {
 		return r.Candidates[0].FinishReason

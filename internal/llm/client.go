@@ -17,10 +17,10 @@ type Message struct {
 	Content string
 }
 
-// LLMClient interface
-// Chat(ctx, messages) -> sends the conversation so far and returns the reply text.
-// Name() -> a human-readable identifier for the backend, used in logs.
+// The single seam to any chat backend.
 type LLMClient interface {
+	// Sends the conversation so far and returns the reply text.
 	Chat(ctx context.Context, messages []Message) (string, error)
+	// A human-readable identifier for the backend, used in logs.
 	Name() string
 }

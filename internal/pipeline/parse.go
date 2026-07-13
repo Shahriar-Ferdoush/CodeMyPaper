@@ -25,11 +25,16 @@ type Reply struct {
 	Files  []File
 }
 
-// parseReply extracts the METHOD line and the file blocks from one raw model
-// reply. Pure string → value: path jailing and reserved-name checks happen at
-// write time, where outDir context lives. A non-nil error means the reply is
-// malformed and its message is written for the model to read as the corrective
-// re-prompt.
+// Extracts the METHOD line and the file blocks from one raw model reply. Pure
+// string → value: path jailing and reserved-name checks happen at write time,
+// where outDir context lives.
+// Input:
+//   - raw: the raw model reply text
+//
+// Output:
+//   - Reply: the parsed method line and file blocks
+//   - error: on a malformed reply; its message is written back to the model as
+//     the corrective re-prompt
 func parseReply(raw string) (Reply, error) {
 	lines := strings.Split(stripOuterFence(raw), "\n")
 
@@ -73,15 +78,21 @@ func parseReply(raw string) (Reply, error) {
 	return reply, nil
 }
 
-// isFileMarker reports whether line is exactly an opening file marker.
+// Reports whether line is exactly an opening file marker
+// ("=== FILE: <name> ===" with a non-empty name).
 func isFileMarker(line string) bool {
 	return strings.HasPrefix(line, fileMarkerPrefix) &&
 		strings.HasSuffix(line, fileMarkerSuffix) &&
 		len(line) > len(fileMarkerPrefix)+len(fileMarkerSuffix)
 }
 
-// stripOuterFence removes one markdown code fence wrapping the whole reply —
-// models add one even when told not to.
+// Removes one markdown code fence wrapping the whole reply — models add one
+// even when told not to.
+// Input:
+//   - raw: the raw model reply text
+//
+// Output:
+//   - string: raw with its outer fence removed, or raw unchanged if it isn't fenced
 func stripOuterFence(raw string) string {
 	s := strings.TrimSpace(raw)
 	if !strings.HasPrefix(s, "```") {

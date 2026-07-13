@@ -44,12 +44,21 @@ type Outcome struct {
 // errMalformed marks a reply that stayed unusable after the corrective re-prompt.
 var errMalformed = errors.New("malformed model reply")
 
-// Run drives the fixed two-call pipeline: generate → write files → smoke-test →
+// Drives the fixed two-call pipeline: generate → write files → smoke-test →
 // on failure one debug call → re-test. Control flow lives here, not in the model;
 // the model is called at most twice (plus at most one corrective re-prompt per call).
+// Input:
+//   - ctx: context.Context for cancellation and deadlines
+//   - client: the LLM backend to drive
+//   - paper: the ingested paper handed to the model
+//   - cfg: output dir, smoke-test timeout, context budget
+//   - logger: run logger
 //
-// A non-nil error is returned only for fatal chat-backend failures; every other
-// ending is encoded in Outcome. REPORT.md is written on every ending.
+// Output:
+//   - Outcome: the run's ending, encoded even on failure
+//   - error: non-nil only for fatal chat-backend failures; every other ending is in Outcome
+//
+// REPORT.md is written on every ending.
 func Run(ctx context.Context, client llm.LLMClient, paper *arxiv.Paper, cfg Config, logger *log.Logger) (Outcome, error) {
 	messages := []llm.Message{
 		{Role: llm.RoleSystem, Content: buildSystemPrompt(paper, cfg.MaxContextChars)},
@@ -58,9 +67,7 @@ func Run(ctx context.Context, client llm.LLMClient, paper *arxiv.Paper, cfg Conf
 	rep := runReport{Paper: paper, Backend: client.Name()}
 	reserved := reservedNames(paper)
 
-	// A previous run's error log must not survive next to this run's REPORT.md —
-	// a green rerun with a stale ERROR_LOG.md would report two contradicting
-	// endings. (The full rerun lifecycle of *generated* files is FEAT-412.)
+	// Remove a stale error log so a green rerun can't report two contradicting endings.
 	if err := os.Remove(filepath.Join(cfg.OutDir, errorLogFile)); err == nil {
 		logger.Debugf("removed stale %s", errorLogFile)
 	}
@@ -102,8 +109,8 @@ func Run(ctx context.Context, client llm.LLMClient, paper *arxiv.Paper, cfg Conf
 	}
 	logger.Infof("smoke test failed (exit %d) — one repair attempt", first.ExitCode)
 
-	// LLM call #2: the single repair attempt (D9 policy). The conversation
-	// continues, so the model still has the paper and its own files in context.
+	// LLM call #2: the single repair attempt (D9 policy).
+	// Conversation continues, so the model still has the paper and its files in context.
 	written := make(map[string]bool, len(rep.Files))
 	for _, n := range rep.Files {
 		written[n] = true
@@ -150,10 +157,20 @@ func Run(ctx context.Context, client llm.LLMClient, paper *arxiv.Paper, cfg Conf
 	return finish(o)
 }
 
-// chatForFiles performs one logical LLM call: chat, parse, validate, with at
-// most one corrective re-prompt on a malformed reply. It appends every message
-// it sends or receives to *messages so a later call continues the conversation.
-// Returns the last raw reply alongside errMalformed so the caller can log it.
+// Performs one logical LLM call: chat, parse, validate, with at most one
+// corrective re-prompt on a malformed reply. Appends every message it sends
+// or receives to *messages so a later call continues the conversation.
+// Input:
+//   - ctx: context.Context for cancellation and deadlines
+//   - client: the LLM backend to call
+//   - messages: the conversation so far; mutated in place with every sent/received turn
+//   - logger: run logger
+//   - validate: checks the parsed reply for this call (generate vs debug rules)
+//
+// Output:
+//   - Reply: the validated reply
+//   - string: the last raw reply text, for logging on errMalformed
+//   - error: wrapped errMalformed if both attempts failed, or a chat transport error
 func chatForFiles(ctx context.Context, client llm.LLMClient, messages *[]llm.Message,
 	logger *log.Logger, validate func(Reply) error) (Reply, string, error) {
 
@@ -183,8 +200,15 @@ func chatForFiles(ctx context.Context, client llm.LLMClient, messages *[]llm.Mes
 	panic("unreachable")
 }
 
-// validateGenerate checks the generate reply: all required files present, every
-// name jailed and non-reserved. A violation counts as malformed → re-prompt.
+// Checks the generate reply: all required files present, every name jailed
+// and non-reserved. A violation counts as malformed → re-prompt.
+// Input:
+//   - r: the parsed reply
+//   - outDir: the run's output directory, for the path jail
+//   - reserved: pipeline-owned names the reply may not write
+//
+// Output:
+//   - error: the first validation failure found, or nil
 func validateGenerate(r Reply, outDir string, reserved map[string]bool) error {
 	for _, want := range requiredFiles {
 		if !hasFile(r.Files, want) {
@@ -194,8 +218,15 @@ func validateGenerate(r Reply, outDir string, reserved map[string]bool) error {
 	return validateNames(r.Files, outDir, reserved)
 }
 
-// validateDebug checks the repair reply: only files written by the generate
-// call may be rewritten.
+// Checks the repair reply: only files written by the generate call may be rewritten.
+// Input:
+//   - r: the parsed reply
+//   - outDir: the run's output directory, for the path jail
+//   - reserved: pipeline-owned names the reply may not write
+//   - written: file names the generate call already wrote
+//
+// Output:
+//   - error: the first validation failure found, or nil
 func validateDebug(r Reply, outDir string, reserved, written map[string]bool) error {
 	for _, f := range r.Files {
 		if !written[filepath.Clean(f.Name)] {
@@ -205,11 +236,20 @@ func validateDebug(r Reply, outDir string, reserved, written map[string]bool) er
 	return validateNames(r.Files, outDir, reserved)
 }
 
-// validateNames applies the path jail and the reserved-name check to every file.
-// Reserved names protect pipeline-owned artifacts (run.log, REPORT.md, …) from
-// being clobbered by model content sharing the same directory. The comparison is
-// case-insensitive: macOS's default filesystem is case-insensitive, so "Run.Log"
-// would otherwise resolve to the same file as the live run.log.
+// Applies the path jail and the reserved-name check to every file. Reserved
+// names protect pipeline-owned artifacts (run.log, REPORT.md, …) from being
+// clobbered by model content sharing the same directory.
+// Input:
+//   - files: the files to check
+//   - outDir: the run's output directory, for the path jail
+//   - reserved: pipeline-owned names, keyed lowercase
+//
+// Output:
+//   - error: a jail error, a reserved-name error, or nil
+//
+// The reserved-name comparison is case-insensitive: macOS's default filesystem
+// is case-insensitive, so "Run.Log" would otherwise resolve to the same file as
+// the live run.log.
 func validateNames(files []File, outDir string, reserved map[string]bool) error {
 	for _, f := range files {
 		if _, err := safeJoin(outDir, f.Name); err != nil {
@@ -222,8 +262,13 @@ func validateNames(files []File, outDir string, reserved map[string]bool) error 
 	return nil
 }
 
-// reservedNames is the set of pipeline-owned artifact names in outDir, keyed
-// lowercase for the case-insensitive check in validateNames.
+// Returns the set of pipeline-owned artifact names in outDir, keyed lowercase
+// for the case-insensitive check in validateNames.
+// Input:
+//   - paper: the current run's paper, for its persisted raw-source name
+//
+// Output:
+//   - map[string]bool: the reserved name set, keyed lowercase
 func reservedNames(paper *arxiv.Paper) map[string]bool {
 	r := map[string]bool{
 		"run.log":                     true,
@@ -237,10 +282,17 @@ func reservedNames(paper *arxiv.Paper) map[string]bool {
 	return r
 }
 
-// writeFiles writes each parsed file under outDir (names were validated; the
-// jail here is belt-and-braces). When rep is non-nil the names are recorded on
-// the report. Write failures are fatal — they are our environment's fault, not
-// the model's, so no re-prompt.
+// Writes each parsed file under outDir (names were validated; the jail here
+// is belt-and-braces). Write failures are fatal — they are our environment's
+// fault, not the model's, so no re-prompt.
+// Input:
+//   - outDir: the run's output directory
+//   - files: the files to write
+//   - rep: if non-nil, the written names are recorded on it
+//   - logger: run logger
+//
+// Output:
+//   - error: on a jail, mkdir, or write failure
 func writeFiles(outDir string, files []File, rep *runReport, logger *log.Logger) error {
 	for _, f := range files {
 		path, err := safeJoin(outDir, f.Name)
@@ -263,6 +315,7 @@ func writeFiles(outDir string, files []File, rep *runReport, logger *log.Logger)
 	return nil
 }
 
+// Reports whether files contains one named name (path-cleaned).
 func hasFile(files []File, name string) bool {
 	for _, f := range files {
 		if filepath.Clean(f.Name) == name {
@@ -272,6 +325,7 @@ func hasFile(files []File, name string) bool {
 	return false
 }
 
+// Returns each file's path-cleaned name, in order.
 func fileNames(files []File) []string {
 	names := make([]string, len(files))
 	for i, f := range files {

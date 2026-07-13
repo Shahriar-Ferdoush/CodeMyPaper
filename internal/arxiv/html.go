@@ -14,9 +14,10 @@ var (
 	styleRe   = regexp.MustCompile(`(?is)<style[^>]*>.*?</style>`)
 )
 
-// htmlToSections strips LaTeXML HTML to heading-delimited Sections. Headings are marked
-// with \x01 bytes before tag-stripping so they can still be split out afterward. The body
-// before the first heading is dropped; the abstract backstop comes from the arXiv API.
+// Strips LaTeXML HTML to heading-delimited Sections. Headings are marked with
+// \x01 bytes before tag-stripping so they can still be split out afterward.
+// The body before the first heading is dropped; the abstract backstop comes
+// from the arXiv API.
 // Input:
 //   - raw: the raw HTML page body
 //
@@ -47,7 +48,7 @@ func htmlToSections(raw string) []Section {
 	return secs
 }
 
-// collapseWS collapses any run of whitespace to a single space and trims the ends.
+// Collapses any run of whitespace to a single space and trims the ends.
 func collapseWS(s string) string {
 	return strings.Join(strings.Fields(s), " ")
 }

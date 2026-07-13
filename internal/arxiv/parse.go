@@ -15,9 +15,9 @@ var (
 	legacyID    = regexp.MustCompile(`[a-z][a-z-]*(?:\.[A-Z]{2})?/\d{7}`)
 )
 
-// ParseID normalizes any arXiv id/URL form into a bare canonical id (version stripped).
-// Tries the unambiguous modern form before the legacy form, so a URL's host/path is
-// never misread as a legacy id.
+// Normalizes any arXiv id/URL form into a bare canonical id (version stripped).
+// Tries the unambiguous modern form before the legacy form, so a URL's
+// host/path is never misread as a legacy id.
 // Input:
 //   - s: a bare id or an /abs//pdf//html//e-print/ URL, with or without an "arXiv:" prefix
 //

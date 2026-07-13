@@ -24,7 +24,7 @@ type exitError struct {
 	err  error
 }
 
-// Error returns the underlying error's message, or "" if err is nil.
+// Returns the underlying error's message, or "" if err is nil.
 func (e *exitError) Error() string {
 	if e.err == nil {
 		return ""
@@ -32,10 +32,10 @@ func (e *exitError) Error() string {
 	return e.err.Error()
 }
 
-// exitErr wraps err with the process exit code it should map to.
+// Wraps err with the process exit code it should map to.
 func exitErr(code int, err error) error { return &exitError{code: code, err: err} }
 
-// versionCmd builds the `version` subcommand.
+// Builds the `version` subcommand.
 func versionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
@@ -46,7 +46,7 @@ func versionCmd() *cobra.Command {
 	}
 }
 
-// runCmd builds the `run` subcommand: fetch the arXiv paper and drive the fixed
+// Builds the `run` subcommand: fetch the arXiv paper and drive the fixed
 // two-call pipeline (generate → smoke-test → one repair → smoke-test).
 func runCmd() *cobra.Command {
 	var (
@@ -83,8 +83,8 @@ func runCmd() *cobra.Command {
 				return exitErr(3, fmt.Errorf("create out dir: %w", err))
 			}
 
-			// Persist the run's log next to its other artifacts; a failure here
-			// defeats the file record but must never fail the run itself.
+			// Persist the run's log next to its other artifacts.
+			// A failure here defeats the file record but must never fail the run itself.
 			if err := logger.AttachFile(filepath.Join(outDir, "run.log")); err != nil {
 				logger.Errorf("could not attach log file: %v", err)
 			}
@@ -105,8 +105,8 @@ func runCmd() *cobra.Command {
 			cfg := pipeline.Config{OutDir: outDir, TestTimeout: testTimeout, MaxContextChars: maxContextChars}
 			outcome, err := pipeline.Run(ctx, client, paper, cfg, logger)
 			if err != nil {
-				// Cobra prints the error to stderr only; record it in run.log too,
-				// since a failed run is exactly when the file record matters.
+				// Cobra prints the error to stderr only; record it in run.log too.
+				// A failed run is exactly when the file record matters most.
 				logger.Errorf("run failed: %v", err)
 				return classifyRunError(err)
 			}
@@ -141,9 +141,9 @@ var rawNames = []string{"paper.html", "paper.tar.gz", "paper.tex.gz"}
 // later run rebuild the same Paper with no network call.
 const cacheMetaName = "paper.meta.json"
 
-// loadOrFetchPaper returns a cache-hit Paper reconstructed entirely from outDir, or falls
-// back to a fresh arxiv.Fetch (network) on a cache miss, a corrupt cache, or --refetch. A
-// fresh fetch's result is persisted for the next rerun via persistPaper.
+// Returns a cache-hit Paper reconstructed entirely from outDir, or falls back
+// to a fresh arxiv.Fetch (network) on a cache miss, a corrupt cache, or
+// --refetch. A fresh fetch's result is persisted for the next rerun via persistPaper.
 // Input:
 //   - outDir: the run's output directory (already created)
 //   - id: the canonical arXiv id (already parsed from idOrURL)
@@ -169,10 +169,19 @@ func loadOrFetchPaper(ctx context.Context, logger *log.Logger, outDir, id, idOrU
 	return paper, nil
 }
 
-// loadCachedPaper attempts a fully offline rebuild from outDir/paper.meta.json plus the
-// raw source it names. Any problem — no sidecar yet, a corrupt one, or a missing/unparsable
-// raw file — is logged (except the ordinary first-run case) and treated as a cache miss,
-// never a hard error: a bad cache must not break a run that would otherwise succeed.
+// Attempts a fully offline rebuild from outDir/paper.meta.json plus the raw
+// source it names. Any problem — no sidecar yet, a corrupt one, or a
+// missing/unparsable raw file — is logged (except the ordinary first-run
+// case) and treated as a cache miss, never a hard error: a bad cache must not
+// break a run that would otherwise succeed.
+// Input:
+//   - logger: run logger
+//   - outDir: the run's output directory
+//   - id: the canonical arXiv id
+//
+// Output:
+//   - *arxiv.Paper: the rebuilt paper, on a cache hit
+//   - bool: whether the cache hit
 func loadCachedPaper(logger *log.Logger, outDir, id string) (*arxiv.Paper, bool) {
 	metaPath := filepath.Join(outDir, cacheMetaName)
 	metaBytes, err := os.ReadFile(metaPath)
@@ -202,10 +211,14 @@ func loadCachedPaper(logger *log.Logger, outDir, id string) (*arxiv.Paper, bool)
 	return paper, true
 }
 
-// persistPaper saves a freshly-fetched paper's raw source plus its cache sidecar, first
-// removing any other rung's file left over from a previous run that landed differently.
-// Best-effort throughout, like the raw-source save it replaces — a save failure must not
-// fail a run that already has its Paper in hand.
+// Saves a freshly-fetched paper's raw source plus its cache sidecar, first
+// removing any other rung's file left over from a previous run that landed
+// differently. Best-effort throughout — a save failure must not fail a run
+// that already has its Paper in hand.
+// Input:
+//   - logger: run logger
+//   - outDir: the run's output directory
+//   - paper: the freshly-fetched paper to persist
 func persistPaper(logger *log.Logger, outDir string, paper *arxiv.Paper) {
 	for _, name := range rawNames {
 		if name == paper.RawName {
@@ -244,7 +257,7 @@ func persistPaper(logger *log.Logger, outDir string, paper *arxiv.Paper) {
 	}
 }
 
-// buildClient selects the LLMClient backend from --model.
+// Selects the LLMClient backend from --model.
 // Input:
 //   - model: "gemini" or "ollama"
 //   - geminiModel, ollamaModel: the hosted/local model id for the selected backend
@@ -263,7 +276,7 @@ func buildClient(model, geminiModel, ollamaModel string) (llm.LLMClient, error) 
 	}
 }
 
-// classifyRunError maps a pipeline.Run error to a process exit code.
+// Maps a pipeline.Run error to a process exit code.
 // Input:
 //   - err: the error returned by pipeline.Run
 //
@@ -280,7 +293,7 @@ func classifyRunError(err error) error {
 	}
 }
 
-// main runs the CLI and maps the returned error to a process exit code (0 ok · 1 no
+// Runs the CLI and maps the returned error to a process exit code (0 ok · 1 no
 // green smoke-test · 2 usage/config · 3 fatal).
 func main() {
 	root := &cobra.Command{

@@ -30,7 +30,7 @@ type Logger struct {
 	file  *os.File
 }
 
-// New creates a Logger writing to w. verbose sets the minimum level to LevelDebug;
+// Creates a Logger writing to w. verbose sets the minimum level to LevelDebug;
 // otherwise it's LevelInfo.
 func New(w io.Writer, verbose bool) *Logger {
 	level := LevelInfo
@@ -40,8 +40,8 @@ func New(w io.Writer, verbose bool) *Logger {
 	return &Logger{w: w, level: level}
 }
 
-// AttachFile opens path (truncating any previous run's log) as a second sink
-// that records all levels. It may be called at most once; a second call errors.
+// Opens path (truncating any previous run's log) as a second sink that
+// records all levels. May be called at most once; a second call errors.
 func (l *Logger) AttachFile(path string) error {
 	if l == nil {
 		return nil
@@ -59,7 +59,7 @@ func (l *Logger) AttachFile(path string) error {
 	return nil
 }
 
-// Close closes the attached log file, if any.
+// Closes the attached log file, if any.
 func (l *Logger) Close() error {
 	if l == nil {
 		return nil
@@ -74,7 +74,7 @@ func (l *Logger) Close() error {
 	return err
 }
 
-// logf writes a prefixed, timestamped line to each sink whose threshold admits
+// Writes a prefixed, timestamped line to each sink whose threshold admits
 // level: the console at the logger's configured level, the file at LevelDebug.
 // A nil Logger discards silently.
 func (l *Logger) logf(level Level, prefix, format string, args ...any) {
@@ -86,8 +86,8 @@ func (l *Logger) logf(level Level, prefix, format string, args ...any) {
 	if l.w == nil && l.file == nil {
 		return
 	}
-	// format must be a literal format string; passing dynamic text (e.g. an LLM
-	// reply) as format would let stray %-verbs corrupt the line — pass it as an arg.
+	// format must be a literal string, never dynamic text (e.g. an LLM reply).
+	// Dynamic text can carry stray %-verbs and corrupt the line — pass it as an arg instead.
 	line := fmt.Sprintf(time.Now().Format(time.RFC3339)+" "+prefix+format+"\n", args...)
 	if l.w != nil && level >= l.level {
 		io.WriteString(l.w, line)

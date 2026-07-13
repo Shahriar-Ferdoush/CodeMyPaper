@@ -29,7 +29,7 @@ var methodKeywords = []string{
 	"algorithm", "framework", "proposed", "technical",
 }
 
-// isMethodRelevant reports whether heading contains a word from methodKeywords.
+// Reports whether heading contains a word from methodKeywords.
 func isMethodRelevant(heading string) bool {
 	h := strings.ToLower(heading)
 	for _, kw := range methodKeywords {
@@ -40,7 +40,7 @@ func isMethodRelevant(heading string) bool {
 	return false
 }
 
-// PromptText assembles the method-focused context handed to the model: title + abstract
+// Assembles the method-focused context handed to the model: title + abstract
 // (always, as a backstop), followed by every MethodRelevant section.
 // Input:
 //   - maxChars: char budget to trim text to (0 = unlimited)
@@ -76,7 +76,7 @@ func (p *Paper) PromptText(maxChars int) (text string, truncated bool) {
 	return text, truncated
 }
 
-// truncateAtRune cuts s to at most max bytes without splitting a multi-byte rune.
+// Cuts s to at most max bytes without splitting a multi-byte rune.
 // Input:
 //   - s: the string to cut
 //   - max: the byte limit

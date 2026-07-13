@@ -27,12 +27,20 @@ type testResult struct {
 	Duration time.Duration
 }
 
-// passed reports whether the run counts as a green smoke-test.
+// Reports whether the run counts as a green smoke-test.
 func (r testResult) passed() bool { return r.ExitCode == 0 && !r.TimedOut }
 
-// runSmokeTest executes `python3 smoke_test.py` in dir with a timeout and an
-// output cap. All failure modes (non-zero exit, timeout, python3 missing) are
-// folded into the result — the caller's verdict logic stays a single check.
+// Executes `python3 smoke_test.py` in dir with a timeout and an output cap.
+// All failure modes (non-zero exit, timeout, python3 missing) are folded into
+// the result — the caller's verdict logic stays a single check.
+// Input:
+//   - ctx: context.Context for cancellation
+//   - dir: the directory to run the smoke test in
+//   - timeout: how long to allow the smoke test to run
+//   - logger: run logger
+//
+// Output:
+//   - testResult: the observed outcome, never an error
 func runSmokeTest(ctx context.Context, dir string, timeout time.Duration, logger *log.Logger) testResult {
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -68,7 +76,13 @@ func runSmokeTest(ctx context.Context, dir string, timeout time.Duration, logger
 	return res
 }
 
-// capOutput truncates s to max bytes, appending a notice of how much was omitted.
+// Truncates s to max bytes, appending a notice of how much was omitted.
+// Input:
+//   - s: the text to cap
+//   - max: the byte limit
+//
+// Output:
+//   - string: s unchanged if under max, otherwise truncated with a trailing notice
 func capOutput(s string, max int) string {
 	if len(s) <= max {
 		return s

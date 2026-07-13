@@ -11,8 +11,8 @@ import (
 	"strings"
 )
 
-// fetchEprintSections is the last rung of the fetch ladder: download the e-print
-// tarball, gunzip it, and lightly strip the concatenated LaTeX source into Sections.
+// The last rung of the fetch ladder: download the e-print tarball, gunzip it,
+// and lightly strip the concatenated LaTeX source into Sections.
 // Input:
 //   - ctx: context.Context for cancellation and deadlines
 //   - id: the canonical arXiv id
@@ -38,7 +38,7 @@ func fetchEprintSections(ctx context.Context, id string) ([]Section, []byte, str
 	return latexSections(tex), body, name, nil
 }
 
-// extractEprintTeX gunzips the e-print payload and returns the concatenated .tex source.
+// Gunzips the e-print payload and returns the concatenated .tex source.
 // Input:
 //   - gz: the gzipped e-print response body
 //
@@ -61,17 +61,17 @@ func extractEprintTeX(gz []byte) (string, bool, error) {
 		tex, err := concatTarTeX(dec)
 		return tex, true, err
 	}
-	// arXiv quirk: single-file submissions are a bare gzipped .tex, not a gzipped tar —
-	// the decompressed bytes are already the source.
+	// arXiv quirk: single-file submissions are a bare gzipped .tex, not a tar.
+	// Decompressed bytes are already the source.
 	return string(dec), false, nil
 }
 
-// isTar reports whether b begins with a POSIX tar header (ustar magic at offset 257).
+// Reports whether b begins with a POSIX tar header (ustar magic at offset 257).
 func isTar(b []byte) bool {
 	return len(b) >= 263 && string(b[257:262]) == "ustar"
 }
 
-// concatTarTeX untars b and concatenates the content of every .tex member.
+// Untars b and concatenates the content of every .tex member.
 // Input:
 //   - b: a POSIX tar byte stream
 //
@@ -114,8 +114,8 @@ var (
 	latexCmd     = regexp.MustCompile(`\\[a-zA-Z]+\*?(?:\[[^\]]*\])?`)
 )
 
-// latexSections splits LaTeX source into Sections on \section{...} markers. With no
-// markers it returns the whole cleaned body as a single MethodRelevant section.
+// Splits LaTeX source into Sections on \section{...} markers. With no markers
+// it returns the whole cleaned body as a single MethodRelevant section.
 // Input:
 //   - tex: the LaTeX source
 //
@@ -151,7 +151,7 @@ func latexSections(tex string) []Section {
 	return secs
 }
 
-// cleanLatex performs a light strip: drop \begin/\end env markers and command tokens,
+// Performs a light strip: drop \begin/\end env markers and command tokens,
 // drop braces and math delimiters, and keep the argument text. Degraded but readable.
 func cleanLatex(s string) string {
 	s = latexEnvCmd.ReplaceAllString(s, " ")

@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-// safeJoin resolves rel against base and rejects any result that escapes base.
-// File paths in a model reply are model-controlled input; this is the jail
+// Resolves rel against base and rejects any result that escapes base. File
+// paths in a model reply are model-controlled input; this is the jail
 // boundary the write step relies on.
 // Input:
 //   - base: the jail root
