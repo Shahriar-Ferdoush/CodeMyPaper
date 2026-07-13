@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -56,6 +57,7 @@ func runCmd() *cobra.Command {
 		testTimeout     time.Duration
 		maxContextChars int
 		verbose         bool
+		refetch         bool
 	)
 	cmd := &cobra.Command{
 		Use:   "run <arxiv-id-or-url>",
@@ -70,19 +72,12 @@ func runCmd() *cobra.Command {
 				return err
 			}
 
-			logger.Infof("fetching arXiv:%s ...", args[0])
-			paper, err := arxiv.Fetch(ctx, args[0])
+			id, err := arxiv.ParseID(args[0])
 			if err != nil {
-				if errors.Is(err, arxiv.ErrSourcesExhausted) {
-					return exitErr(3, fmt.Errorf("fetch paper: %w", err))
-				}
 				return exitErr(2, fmt.Errorf("resolve paper: %w", err))
 			}
-			logger.Infof("fetched %q via %s (%d sections)",
-				paper.Title, paper.Source, len(paper.Sections))
-
 			if outDir == "" {
-				outDir = filepath.Join("out", paper.ID)
+				outDir = filepath.Join("out", id)
 			}
 			if err := os.MkdirAll(outDir, 0o755); err != nil {
 				return exitErr(3, fmt.Errorf("create out dir: %w", err))
@@ -95,15 +90,15 @@ func runCmd() *cobra.Command {
 			}
 			defer logger.Close()
 
-			// Persist the exact fetched source (paper.html / paper.tar.gz) for inspection;
-			// best-effort — the run doesn't depend on it.
-			if len(paper.Raw) > 0 {
-				if err := os.WriteFile(filepath.Join(outDir, paper.RawName), paper.Raw, 0o644); err != nil {
-					logger.Warnf("could not save fetched source: %v", err)
-				} else {
-					logger.Infof("saved fetched source to %s", filepath.Join(outDir, paper.RawName))
+			paper, err := loadOrFetchPaper(ctx, logger, outDir, id, args[0], refetch)
+			if err != nil {
+				if errors.Is(err, arxiv.ErrSourcesExhausted) {
+					return exitErr(3, fmt.Errorf("fetch paper: %w", err))
 				}
+				return exitErr(2, fmt.Errorf("resolve paper: %w", err))
 			}
+			logger.Infof("using %q via %s (%d sections)",
+				paper.Title, paper.Source, len(paper.Sections))
 
 			logger.Infof("backend=%s out=%s", client.Name(), outDir)
 
@@ -133,8 +128,120 @@ func runCmd() *cobra.Command {
 	cmd.Flags().DurationVar(&testTimeout, "timeout", 120*time.Second, "smoke-test timeout")
 	cmd.Flags().IntVar(&maxContextChars, "max-context-chars", 60000, "paper context budget in characters")
 	cmd.Flags().BoolVar(&verbose, "verbose", false, "stream pipeline debug logging to stderr")
+	cmd.Flags().BoolVar(&refetch, "refetch", false, "force a fresh network fetch, bypassing any cached paper source")
 
 	return cmd
+}
+
+// rawNames enumerates every raw-source filename a fetch rung might produce, so a fresh
+// fetch can clear out a stale file left by a previous run that landed on a different rung.
+var rawNames = []string{"paper.html", "paper.tar.gz", "paper.tex.gz"}
+
+// cacheMetaName is the sidecar written next to a fetched paper's raw source, letting a
+// later run rebuild the same Paper with no network call.
+const cacheMetaName = "paper.meta.json"
+
+// loadOrFetchPaper returns a cache-hit Paper reconstructed entirely from outDir, or falls
+// back to a fresh arxiv.Fetch (network) on a cache miss, a corrupt cache, or --refetch. A
+// fresh fetch's result is persisted for the next rerun via persistPaper.
+// Input:
+//   - outDir: the run's output directory (already created)
+//   - id: the canonical arXiv id (already parsed from idOrURL)
+//   - idOrURL: the raw CLI argument, passed through to arxiv.Fetch on a cache miss
+//   - refetch: --refetch — skip the cache unconditionally
+//
+// Output:
+//   - *arxiv.Paper: the loaded or freshly-fetched paper
+//   - error: arxiv.Fetch's error on a cache miss/refetch, untouched (callers classify it)
+func loadOrFetchPaper(ctx context.Context, logger *log.Logger, outDir, id, idOrURL string, refetch bool) (*arxiv.Paper, error) {
+	if !refetch {
+		if paper, ok := loadCachedPaper(logger, outDir, id); ok {
+			return paper, nil
+		}
+	}
+
+	logger.Infof("fetching arXiv:%s ...", idOrURL)
+	paper, err := arxiv.Fetch(ctx, idOrURL)
+	if err != nil {
+		return nil, err
+	}
+	persistPaper(logger, outDir, paper)
+	return paper, nil
+}
+
+// loadCachedPaper attempts a fully offline rebuild from outDir/paper.meta.json plus the
+// raw source it names. Any problem — no sidecar yet, a corrupt one, or a missing/unparsable
+// raw file — is logged (except the ordinary first-run case) and treated as a cache miss,
+// never a hard error: a bad cache must not break a run that would otherwise succeed.
+func loadCachedPaper(logger *log.Logger, outDir, id string) (*arxiv.Paper, bool) {
+	metaPath := filepath.Join(outDir, cacheMetaName)
+	metaBytes, err := os.ReadFile(metaPath)
+	if err != nil {
+		return nil, false // no cache yet — the common case, not worth logging
+	}
+
+	var meta arxiv.CachedMeta
+	if err := json.Unmarshal(metaBytes, &meta); err != nil {
+		logger.Warnf("cache: corrupt %s, fetching fresh: %v", metaPath, err)
+		return nil, false
+	}
+
+	raw, err := os.ReadFile(filepath.Join(outDir, meta.RawName))
+	if err != nil {
+		logger.Warnf("cache: raw source %s missing, fetching fresh: %v", meta.RawName, err)
+		return nil, false
+	}
+
+	paper, err := arxiv.FromCache(id, meta, raw)
+	if err != nil {
+		logger.Warnf("cache: %v, fetching fresh", err)
+		return nil, false
+	}
+
+	logger.Infof("using cached paper source (%s) — pass --refetch to force a fresh fetch", metaPath)
+	return paper, true
+}
+
+// persistPaper saves a freshly-fetched paper's raw source plus its cache sidecar, first
+// removing any other rung's file left over from a previous run that landed differently.
+// Best-effort throughout, like the raw-source save it replaces — a save failure must not
+// fail a run that already has its Paper in hand.
+func persistPaper(logger *log.Logger, outDir string, paper *arxiv.Paper) {
+	for _, name := range rawNames {
+		if name == paper.RawName {
+			continue
+		}
+		stale := filepath.Join(outDir, name)
+		if err := os.Remove(stale); err == nil {
+			logger.Infof("removed stale cached source %s", stale)
+		}
+	}
+
+	if len(paper.Raw) == 0 {
+		return // api-only: nothing to cache
+	}
+
+	rawPath := filepath.Join(outDir, paper.RawName)
+	if err := os.WriteFile(rawPath, paper.Raw, 0o644); err != nil {
+		logger.Warnf("could not save fetched source: %v", err)
+		return
+	}
+	logger.Infof("saved fetched source to %s", rawPath)
+
+	meta := arxiv.CachedMeta{
+		Source:   paper.Source,
+		RawName:  paper.RawName,
+		Title:    paper.Title,
+		Abstract: paper.Abstract,
+	}
+	metaBytes, err := json.MarshalIndent(meta, "", "  ")
+	if err != nil {
+		logger.Warnf("could not encode cache metadata: %v", err)
+		return
+	}
+	if err := os.WriteFile(filepath.Join(outDir, cacheMetaName), metaBytes, 0o644); err != nil {
+		logger.Warnf("could not save cache metadata: %v", err)
+	}
 }
 
 // buildClient selects the LLMClient backend from --model.

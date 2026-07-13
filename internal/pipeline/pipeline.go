@@ -225,7 +225,12 @@ func validateNames(files []File, outDir string, reserved map[string]bool) error 
 // reservedNames is the set of pipeline-owned artifact names in outDir, keyed
 // lowercase for the case-insensitive check in validateNames.
 func reservedNames(paper *arxiv.Paper) map[string]bool {
-	r := map[string]bool{"run.log": true, strings.ToLower(reportFile): true, strings.ToLower(errorLogFile): true}
+	r := map[string]bool{
+		"run.log":                     true,
+		"paper.meta.json":             true,
+		strings.ToLower(reportFile):   true,
+		strings.ToLower(errorLogFile): true,
+	}
 	if paper.RawName != "" {
 		r[strings.ToLower(paper.RawName)] = true
 	}
