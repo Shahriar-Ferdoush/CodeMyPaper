@@ -11,16 +11,16 @@ import (
 )
 
 const (
-	reportFile   = "REPORT.md"
+	impDetailsFile   = "IMP_DETAILS.md"
 	errorLogFile = "ERROR_LOG.md"
 )
 
 // successBar is the project's honest success criterion, stated verbatim on
-// every report.
+// every implementation-details file.
 const successBar = `Success bar: the generated code runs on toy input and implements the named method — it does not reproduce the paper's reported numbers.`
 
-// runReport accumulates what REPORT.md needs as the pipeline progresses.
-type runReport struct {
+// impDetails accumulates what IMP_DETAILS.md needs as the pipeline progresses.
+type impDetails struct {
 	Paper    *arxiv.Paper
 	Backend  string
 	Files    []string // written by the generate call
@@ -28,12 +28,17 @@ type runReport struct {
 	Outcome  Outcome
 }
 
-// writeReport writes REPORT.md into outDir. It runs on every ending, success
-// and failure alike; a write failure is logged, never fatal — the report must
-// not be able to break the run it describes.
-func writeReport(outDir string, r runReport, logger *log.Logger) {
+// Writes IMP_DETAILS.md into outDir. Runs on every ending, success and failure alike.
+// Input:
+//   - outDir: the run's output directory
+//   - r: the accumulated run data
+//   - logger: run logger
+//
+// A write failure is logged, never fatal — the implementation-details file must not be able to
+// break the run it describes.
+func writeImpDetails(outDir string, r impDetails, logger *log.Logger) {
 	var b strings.Builder
-	b.WriteString("# codemypaper run report\n\n")
+	b.WriteString("# codemypaper implementation details\n\n")
 
 	title := r.Paper.Title
 	if title == "" {
@@ -63,10 +68,15 @@ func writeReport(outDir string, r runReport, logger *log.Logger) {
 	}
 	b.WriteString("\n" + successBar + "\n")
 
-	writeArtifact(outDir, reportFile, b.String(), logger)
+	writeArtifact(outDir, impDetailsFile, b.String(), logger)
 }
 
-// exitCodeFor maps a stop reason to the process exit code the run ends with.
+// Maps a stop reason to the process exit code the run ends with.
+// Input:
+//   - stopReason: one of the Stop* constants
+//
+// Output:
+//   - string: the exit code as text, for the implementation-details file
 func exitCodeFor(stopReason string) string {
 	switch stopReason {
 	case StopPassed:
@@ -78,6 +88,7 @@ func exitCodeFor(stopReason string) string {
 	}
 }
 
+// Returns the "and ERROR_LOG.md" suffix for endings that write one.
 func errorLogHint(stopReason string) string {
 	if stopReason == StopRepairExhausted || stopReason == StopMalformed {
 		return " and " + errorLogFile
@@ -85,9 +96,14 @@ func errorLogHint(stopReason string) string {
 	return ""
 }
 
-// writeErrorLog writes ERROR_LOG.md: the resumable record of why the run ended
-// without a green smoke-test. rawReply is set for malformed endings; rewritten
-// names the files the repair call changed, for repair-exhausted endings.
+// Writes ERROR_LOG.md: the resumable record of why the run ended without a
+// green smoke-test.
+// Input:
+//   - outDir: the run's output directory
+//   - o: the run's outcome
+//   - rawReply: the last raw model reply; set for malformed endings
+//   - rewritten: the files the repair call changed; set for repair-exhausted endings
+//   - logger: run logger
 func writeErrorLog(outDir string, o Outcome, rawReply string, rewritten []string, logger *log.Logger) {
 	var b strings.Builder
 	b.WriteString("# codemypaper error log\n\n")
@@ -103,8 +119,7 @@ func writeErrorLog(outDir string, o Outcome, rawReply string, rewritten []string
 	case StopMalformed:
 		b.WriteString("A model reply stayed unusable after the one corrective re-prompt; no runnable state was reached.\n")
 		if o.FirstFail != "" {
-			// The malformed reply came from the debug call: keep the test failure
-			// that triggered it, or this log is not resumable.
+			// Malformed reply came from the debug call: keep the triggering test failure too.
 			b.WriteString("\n## Failing smoke-test output that triggered the repair\n\n")
 			writeFenced(&b, o.FirstFail)
 		}
@@ -115,8 +130,11 @@ func writeErrorLog(outDir string, o Outcome, rawReply string, rewritten []string
 	writeArtifact(outDir, errorLogFile, b.String(), logger)
 }
 
-// writeFenced writes s as a fenced block, using a fence longer than any run of
-// backticks in s so model output can't break out of it.
+// Writes s as a fenced block, using a fence longer than any run of backticks
+// in s so model output can't break out of it.
+// Input:
+//   - b: the builder to write into
+//   - s: the text to fence
 func writeFenced(b *strings.Builder, s string) {
 	fence := "```"
 	for strings.Contains(s, fence) {
@@ -125,7 +143,12 @@ func writeFenced(b *strings.Builder, s string) {
 	fmt.Fprintf(b, "%s\n%s\n%s\n", fence, strings.TrimRight(s, "\n"), fence)
 }
 
-// writeArtifact best-effort writes one pipeline-owned file, logging failures.
+// Best-effort writes one pipeline-owned file, logging failures.
+// Input:
+//   - outDir: the run's output directory
+//   - name: the file name to write
+//   - content: the file content
+//   - logger: run logger
 func writeArtifact(outDir, name, content string, logger *log.Logger) {
 	path := filepath.Join(outDir, name)
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {

@@ -58,13 +58,13 @@ var errMalformed = errors.New("malformed model reply")
 //   - Outcome: the run's ending, encoded even on failure
 //   - error: non-nil only for fatal chat-backend failures; every other ending is in Outcome
 //
-// REPORT.md is written on every ending.
+// IMP_DETAILS.md is written on every ending.
 func Run(ctx context.Context, client llm.LLMClient, paper *arxiv.Paper, cfg Config, logger *log.Logger) (Outcome, error) {
 	messages := []llm.Message{
 		{Role: llm.RoleSystem, Content: buildSystemPrompt(paper, cfg.MaxContextChars)},
 		{Role: llm.RoleUser, Content: generateTask(paper)},
 	}
-	rep := runReport{Paper: paper, Backend: client.Name()}
+	rep := impDetails{Paper: paper, Backend: client.Name()}
 	reserved := reservedNames(paper)
 
 	// Remove a stale error log so a green rerun can't report two contradicting endings.
@@ -74,7 +74,7 @@ func Run(ctx context.Context, client llm.LLMClient, paper *arxiv.Paper, cfg Conf
 
 	finish := func(o Outcome) (Outcome, error) {
 		rep.Outcome = o
-		writeReport(cfg.OutDir, rep, logger)
+		writeImpDetails(cfg.OutDir, rep, logger)
 		return o, nil
 	}
 
@@ -90,13 +90,13 @@ func Run(ctx context.Context, client llm.LLMClient, paper *arxiv.Paper, cfg Conf
 			return finish(Outcome{StopReason: StopMalformed})
 		}
 		rep.Outcome = Outcome{StopReason: StopFatal}
-		writeReport(cfg.OutDir, rep, logger)
+		writeImpDetails(cfg.OutDir, rep, logger)
 		return Outcome{StopReason: StopFatal}, err
 	}
 	rep.Outcome.Method = reply.Method
 	if err := writeFiles(cfg.OutDir, reply.Files, &rep, logger); err != nil {
 		rep.Outcome.StopReason = StopFatal
-		writeReport(cfg.OutDir, rep, logger)
+		writeImpDetails(cfg.OutDir, rep, logger)
 		return Outcome{StopReason: StopFatal, Method: reply.Method}, err
 	}
 
@@ -128,13 +128,13 @@ func Run(ctx context.Context, client llm.LLMClient, paper *arxiv.Paper, cfg Conf
 			return finish(o)
 		}
 		rep.Outcome.StopReason = StopFatal
-		writeReport(cfg.OutDir, rep, logger)
+		writeImpDetails(cfg.OutDir, rep, logger)
 		return Outcome{StopReason: StopFatal, Method: reply.Method}, err
 	}
 	rewritten := fileNames(fixed.Files)
 	if err := writeFiles(cfg.OutDir, fixed.Files, nil, logger); err != nil {
 		rep.Outcome.StopReason = StopFatal
-		writeReport(cfg.OutDir, rep, logger)
+		writeImpDetails(cfg.OutDir, rep, logger)
 		return Outcome{StopReason: StopFatal, Method: reply.Method}, err
 	}
 
@@ -237,7 +237,7 @@ func validateDebug(r Reply, outDir string, reserved, written map[string]bool) er
 }
 
 // Applies the path jail and the reserved-name check to every file. Reserved
-// names protect pipeline-owned artifacts (run.log, REPORT.md, …) from being
+// names protect pipeline-owned artifacts (run.log, IMP_DETAILS.md, …) from being
 // clobbered by model content sharing the same directory.
 // Input:
 //   - files: the files to check
@@ -273,7 +273,7 @@ func reservedNames(paper *arxiv.Paper) map[string]bool {
 	r := map[string]bool{
 		"run.log":                     true,
 		"paper.meta.json":             true,
-		strings.ToLower(reportFile):   true,
+		strings.ToLower(impDetailsFile):   true,
 		strings.ToLower(errorLogFile): true,
 	}
 	if paper.RawName != "" {
@@ -293,7 +293,7 @@ func reservedNames(paper *arxiv.Paper) map[string]bool {
 //
 // Output:
 //   - error: on a jail, mkdir, or write failure
-func writeFiles(outDir string, files []File, rep *runReport, logger *log.Logger) error {
+func writeFiles(outDir string, files []File, rep *impDetails, logger *log.Logger) error {
 	for _, f := range files {
 		path, err := safeJoin(outDir, f.Name)
 		if err != nil {
