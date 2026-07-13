@@ -38,10 +38,10 @@ func TestValidateGenerate(t *testing.T) {
 	})
 
 	// Testing - a file using a reserved name, case-varied
-	// Input - required files plus "Report.MD"
+	// Input - required files plus "Imp_Details.MD"
 	// Expected output - error, reserved-name check is case-insensitive
 	t.Run("reserved name rejected", func(t *testing.T) {
-		files := append(append([]File{}, validFiles...), File{Name: "Report.MD"})
+		files := append(append([]File{}, validFiles...), File{Name: "Imp_Details.MD"})
 		err := validateGenerate(Reply{Files: files}, outDir, reserved)
 		if err == nil || !strings.Contains(err.Error(), "reserved") {
 			t.Fatalf("validateGenerate error = %v, want a reserved-name error", err)
@@ -89,10 +89,10 @@ func TestValidateDebug(t *testing.T) {
 func TestReservedNames(t *testing.T) {
 	// Testing - the base reserved set with no persisted raw source
 	// Input - &arxiv.Paper{} (RawName empty)
-	// Expected output - run.log, paper.meta.json, report.md, error_log.md present; no RawName entry
+	// Expected output - run.log, paper.meta.json, imp_details.md, error_log.md present; no RawName entry
 	t.Run("base set", func(t *testing.T) {
 		r := reservedNames(&arxiv.Paper{})
-		for _, want := range []string{"run.log", "paper.meta.json", "report.md", "error_log.md"} {
+		for _, want := range []string{"run.log", "paper.meta.json", "imp_details.md", "error_log.md"} {
 			if !r[want] {
 				t.Fatalf("reservedNames missing %q", want)
 			}

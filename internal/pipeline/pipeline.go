@@ -271,10 +271,10 @@ func validateNames(files []File, outDir string, reserved map[string]bool) error 
 //   - map[string]bool: the reserved name set, keyed lowercase
 func reservedNames(paper *arxiv.Paper) map[string]bool {
 	r := map[string]bool{
-		"run.log":                     true,
-		"paper.meta.json":             true,
-		strings.ToLower(impDetailsFile):   true,
-		strings.ToLower(errorLogFile): true,
+		"run.log":                       true,
+		"paper.meta.json":               true,
+		strings.ToLower(impDetailsFile): true,
+		strings.ToLower(errorLogFile):   true,
 	}
 	if paper.RawName != "" {
 		r[strings.ToLower(paper.RawName)] = true

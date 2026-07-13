@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	impDetailsFile   = "IMP_DETAILS.md"
-	errorLogFile = "ERROR_LOG.md"
+	impDetailsFile = "IMP_DETAILS.md"
+	errorLogFile   = "ERROR_LOG.md"
 )
 
 // successBar is the project's honest success criterion, stated verbatim on
