@@ -2,3 +2,9 @@
 out/
 bin/
 .venv/
+*.md
+!internal/agent/prompt.md
+
+# macOS
+.DS_Store
+**/.DS_Store

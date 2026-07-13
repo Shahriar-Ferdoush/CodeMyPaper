@@ -1,4 +1,4 @@
-package tools
+package pipeline
 
 import (
 	"fmt"
@@ -7,8 +7,16 @@ import (
 	"strings"
 )
 
-const defaultMaxOutput = 8 * 1024
-
+// Resolves rel against base and rejects any result that escapes base. File
+// paths in a model reply are model-controlled input; this is the jail
+// boundary the write step relies on.
+// Input:
+//   - base: the jail root
+//   - rel: a path relative to base, as supplied by the model
+//
+// Output:
+//   - string: the resolved absolute path
+//   - error: if rel is empty, absolute, or resolves outside base
 func safeJoin(base, rel string) (string, error) {
 	if rel == "" {
 		return "", fmt.Errorf("empty path")
@@ -20,7 +28,7 @@ func safeJoin(base, rel string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolve base dir: %w", err)
 	}
-	
+
 	joined := filepath.Join(absBase, rel)
 	relToBase, err := filepath.Rel(absBase, joined)
 	if err != nil {
@@ -30,16 +38,4 @@ func safeJoin(base, rel string) (string, error) {
 		return "", fmt.Errorf("path %q escapes the output directory", rel)
 	}
 	return joined, nil
-}
-
-func capOutput(s string, max int) string {
-	if max <= 0 {
-		max = defaultMaxOutput
-	}
-	if len(s) <= max {
-		return s
-	}
-	omitted := len(s) - max
-	head := strings.ToValidUTF8(s[:max], "")
-	return head + fmt.Sprintf("\n... [output truncated: %d bytes omitted]", omitted)
 }
