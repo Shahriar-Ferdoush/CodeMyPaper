@@ -1,4 +1,4 @@
-package tools
+package pipeline
 
 import (
 	"fmt"
@@ -7,10 +7,9 @@ import (
 	"strings"
 )
 
-// defaultMaxOutput is the byte cap applied to tool output before it's fed back to the model.
-const defaultMaxOutput = 8 * 1024
-
 // safeJoin resolves rel against base and rejects any result that escapes base.
+// File paths in a model reply are model-controlled input; this is the jail
+// boundary the write step relies on.
 // Input:
 //   - base: the jail root
 //   - rel: a path relative to base, as supplied by the model
@@ -35,22 +34,8 @@ func safeJoin(base, rel string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("path %q escapes base: %w", rel, err)
 	}
-	// Reject any ".." segment here — this is the jail boundary the tools rely on.
 	if relToBase == ".." || strings.HasPrefix(relToBase, ".."+string(os.PathSeparator)) {
 		return "", fmt.Errorf("path %q escapes the output directory", rel)
 	}
 	return joined, nil
-}
-
-// capOutput truncates s to max bytes, appending a notice of how much was omitted.
-func capOutput(s string, max int) string {
-	if max <= 0 {
-		max = defaultMaxOutput
-	}
-	if len(s) <= max {
-		return s
-	}
-	omitted := len(s) - max
-	head := strings.ToValidUTF8(s[:max], "")
-	return head + fmt.Sprintf("\n... [output truncated: %d bytes omitted]", omitted)
 }

@@ -8,11 +8,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"codemypaper/internal/agent"
 	"codemypaper/internal/arxiv"
 	"codemypaper/internal/llm"
 	"codemypaper/internal/log"
-	"codemypaper/internal/tools"
+	"codemypaper/internal/pipeline"
 	"github.com/spf13/cobra"
 )
 
@@ -46,16 +45,15 @@ func versionCmd() *cobra.Command {
 	}
 }
 
-// runCmd builds the `run` subcommand: fetch the arXiv paper, wire the tool registry
-// and agent, and drive the loop to a green smoke-test or max-iters.
+// runCmd builds the `run` subcommand: fetch the arXiv paper and drive the fixed
+// two-call pipeline (generate → smoke-test → one repair → smoke-test).
 func runCmd() *cobra.Command {
 	var (
 		model           string
 		geminiModel     string
 		ollamaModel     string
 		outDir          string
-		maxIters        int
-		cmdTimeout      time.Duration
+		testTimeout     time.Duration
 		maxContextChars int
 		verbose         bool
 	)
@@ -64,9 +62,6 @@ func runCmd() *cobra.Command {
 		Short: "Generate an implementation of an arXiv paper",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if maxIters < 1 {
-				return exitErr(2, fmt.Errorf("--max-iters must be at least 1, got %d", maxIters))
-			}
 			logger := log.New(os.Stderr, verbose)
 			ctx := cmd.Context()
 
@@ -110,15 +105,10 @@ func runCmd() *cobra.Command {
 				}
 			}
 
-			reg := tools.NewRegistry()
-			reg.Register(tools.NewWriteFile(outDir, logger))
-			reg.Register(tools.NewReadFile(outDir, logger))
-			reg.Register(tools.NewRunCommand(outDir, cmdTimeout, logger))
+			logger.Infof("backend=%s out=%s", client.Name(), outDir)
 
-			logger.Infof("backend=%s out=%s max-iters=%d", client.Name(), outDir, maxIters)
-
-			a := agent.New(client, reg, agent.Config{MaxIters: maxIters}, logger)
-			outcome, err := a.Run(ctx, agent.BuildSystemPrompt(reg, paper, maxContextChars), agent.FirstUserMessage(paper))
+			cfg := pipeline.Config{OutDir: outDir, TestTimeout: testTimeout, MaxContextChars: maxContextChars}
+			outcome, err := pipeline.Run(ctx, client, paper, cfg, logger)
 			if err != nil {
 				// Cobra prints the error to stderr only; record it in run.log too,
 				// since a failed run is exactly when the file record matters.
@@ -126,10 +116,9 @@ func runCmd() *cobra.Command {
 				return classifyRunError(err)
 			}
 
-			fmt.Printf("\noutcome: %s (success=%v, iterations=%d)\n",
-				outcome.StopReason, outcome.Success, outcome.Iterations)
-			if outcome.Summary != "" {
-				fmt.Println("summary:", outcome.Summary)
+			fmt.Printf("\noutcome: %s (success=%v)\n", outcome.StopReason, outcome.Success)
+			if outcome.Method != "" {
+				fmt.Println("method:", outcome.Method)
 			}
 			if !outcome.Success {
 				return exitErr(1, nil)
@@ -141,10 +130,9 @@ func runCmd() *cobra.Command {
 	cmd.Flags().StringVar(&geminiModel, "gemini-model", "gemini-2.5-flash", "hosted model id (gemini backend)")
 	cmd.Flags().StringVar(&ollamaModel, "ollama-model", "qwen2.5-coder:3b", "local model id (ollama backend)")
 	cmd.Flags().StringVar(&outDir, "out", "", "output directory; defaults to ./out/<arxiv-id>")
-	cmd.Flags().IntVar(&maxIters, "max-iters", 6, "max agent iterations")
-	cmd.Flags().DurationVar(&cmdTimeout, "timeout", 120*time.Second, "per-command timeout")
+	cmd.Flags().DurationVar(&testTimeout, "timeout", 120*time.Second, "smoke-test timeout")
 	cmd.Flags().IntVar(&maxContextChars, "max-context-chars", 60000, "paper context budget in characters")
-	cmd.Flags().BoolVar(&verbose, "verbose", false, "stream the agent loop to stderr")
+	cmd.Flags().BoolVar(&verbose, "verbose", false, "stream pipeline debug logging to stderr")
 
 	return cmd
 }
@@ -168,9 +156,9 @@ func buildClient(model, geminiModel, ollamaModel string) (llm.LLMClient, error) 
 	}
 }
 
-// classifyRunError maps an Agent.Run error to a process exit code.
+// classifyRunError maps a pipeline.Run error to a process exit code.
 // Input:
-//   - err: the error returned by Agent.Run
+//   - err: the error returned by pipeline.Run
 //
 // Output:
 //   - error: an *exitError with code 2 for a missing API key, 3 for any other backend/loop failure
