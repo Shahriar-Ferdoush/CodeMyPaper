@@ -9,10 +9,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"codemypaper/internal/arxiv"
-	"codemypaper/internal/llm"
-	"codemypaper/internal/log"
-	"codemypaper/internal/pipeline"
+	"github.com/shahriar-ferdoush/codemypaper/internal/arxiv"
+	"github.com/shahriar-ferdoush/codemypaper/internal/llm"
+	"github.com/shahriar-ferdoush/codemypaper/internal/log"
+	"github.com/shahriar-ferdoush/codemypaper/internal/pipeline"
 	"github.com/spf13/cobra"
 )
 

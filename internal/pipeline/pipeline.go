@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"codemypaper/internal/arxiv"
-	"codemypaper/internal/llm"
-	"codemypaper/internal/log"
+	"github.com/shahriar-ferdoush/codemypaper/internal/arxiv"
+	"github.com/shahriar-ferdoush/codemypaper/internal/llm"
+	"github.com/shahriar-ferdoush/codemypaper/internal/log"
 )
 
 // Stop reasons for Outcome.StopReason.

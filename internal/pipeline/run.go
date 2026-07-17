@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"codemypaper/internal/log"
+	"github.com/shahriar-ferdoush/codemypaper/internal/log"
 )
 
 // maxTestOutput is the byte cap on captured smoke-test output before it is fed
