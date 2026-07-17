@@ -1,6 +1,6 @@
-# codemypaper
+# CodeMyPaper
 
-`codemypaper` takes an arXiv machine-learning paper and generates a runnable Python/PyTorch
+**CodeMyPaper** (`codemypaper`) takes an arXiv machine-learning paper and generates a runnable Python/PyTorch
 reference implementation of its core method. It is not an agent: control flow lives entirely in
 Go. One model call generates the implementation, a smoke test, and an entrypoint; the tool writes
 the files and runs the test itself on toy input; if the test fails, a second model call receives
@@ -18,8 +18,10 @@ correctness rests with a human reader of the generated source.
 
 ## Quickstart
 
-Requires Go 1.26+ and a Python 3 environment with `torch` and `numpy` on `PATH` (a virtualenv
-works: `python3 -m venv .venv && .venv/bin/pip install torch numpy`, then activate it).
+Requires Go 1.26+ and a Python 3 environment with `torch` and `numpy`. `codemypaper` runs the
+smoke test with the `python3` found on your `PATH`, so if you use a virtualenv
+(`python3 -m venv .venv && .venv/bin/pip install torch numpy`), it must be **active in the shell
+where you run `codemypaper`** — not just when rerunning the test yourself.
 
 ```sh
 git clone https://github.com/shahriar-ferdoush/codemypaper && cd codemypaper
