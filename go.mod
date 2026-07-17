@@ -1,4 +1,4 @@
-module codemypaper
+module github.com/shahriar-ferdoush/codemypaper
 
 go 1.26.4
 

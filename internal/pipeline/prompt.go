@@ -6,7 +6,7 @@ import (
 	"strings"
 	"text/template"
 
-	"codemypaper/internal/arxiv"
+	"github.com/shahriar-ferdoush/codemypaper/internal/arxiv"
 )
 
 // Prompt text lives in prompt.md, embedded into the binary at build time.

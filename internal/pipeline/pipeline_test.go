@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"codemypaper/internal/arxiv"
+	"github.com/shahriar-ferdoush/codemypaper/internal/arxiv"
 )
 
 func TestValidateGenerate(t *testing.T) {

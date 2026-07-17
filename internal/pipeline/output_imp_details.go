@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"codemypaper/internal/arxiv"
-	"codemypaper/internal/log"
+	"github.com/shahriar-ferdoush/codemypaper/internal/arxiv"
+	"github.com/shahriar-ferdoush/codemypaper/internal/log"
 )
 
 const (
