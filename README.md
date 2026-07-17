@@ -23,10 +23,18 @@ works: `python3 -m venv .venv && .venv/bin/pip install torch numpy`, then activa
 
 ```sh
 git clone https://github.com/shahriar-ferdoush/codemypaper && cd codemypaper
-make install                     # installs to $(go env GOPATH)/bin — make sure it's on PATH
+make                             # builds ./bin/codemypaper
 export GEMINI_API_KEY=...        # free tier works
-codemypaper run 1706.03762
+./bin/codemypaper run 1706.03762
 (cd out/1706.03762 && python3 smoke_test.py)   # exits 0
+```
+
+To get a bare `codemypaper` command instead of `./bin/codemypaper`, run `make install`. It puts
+the binary in `$(go env GOPATH)/bin` (usually `~/go/bin`), which is **not on PATH by default** —
+if `codemypaper` then says "command not found", add it:
+
+```sh
+echo 'export PATH="$HOME/go/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc   # bash: ~/.bashrc
 ```
 
 To run fully offline instead, use the local backend: start Ollama (`ollama serve`), pull a model
@@ -105,8 +113,8 @@ The Makefile wraps the standard Go workflow and stamps the build with a version 
 
 | Target | What it does |
 |---|---|
-| `make build` | build `bin/codemypaper` with the version stamp (default target) |
-| `make install` | install the stamped binary via `go install` |
+| `make build` | build `bin/codemypaper` with the version stamp (default target — plain `make` runs this) |
+| `make install` | install the stamped binary to `$(go env GOPATH)/bin` — needs that dir on PATH (see Quickstart) |
 | `make test` | `go test ./...` |
 | `make lint` | `go vet`, plus `golangci-lint` when installed |
 | `make fmt` / `make fmt-check` | format the tree / fail if anything is unformatted |
