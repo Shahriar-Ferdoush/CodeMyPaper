@@ -1,6 +1,7 @@
 # generated output, build artifacts, python env
 out/
 bin/
+dist/
 .venv/
 *.md
 !internal/agent/prompt.md
