@@ -42,6 +42,42 @@ echo 'export PATH="$HOME/go/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc   # bash:
 To run fully offline instead, use the local backend: start Ollama (`ollama serve`), pull a model
 (`ollama pull qwen2.5-coder:3b`), and pass `--model ollama`. No API key needed.
 
+## Install from a release
+
+Each [release](https://github.com/shahriar-ferdoush/codemypaper/releases) ships prebuilt archives
+for macOS and Linux (amd64/arm64), named `codemypaper_<version>_<os>_<arch>.tar.gz`. Download the
+one matching your platform, then:
+
+```sh
+tar -xzf codemypaper_*.tar.gz
+./codemypaper version   # prints the release version
+```
+
+A release binary removes the Go requirement, but running papers still needs the Python
+environment with `torch` and `numpy` described in the Quickstart.
+
+To verify a download, fetch `checksums.txt` from the same release and check the archive against it:
+
+```sh
+shasum -a 256 --check --ignore-missing checksums.txt
+```
+
+The checksums file itself is signed in CI with keyless [cosign](https://docs.sigstore.dev): the
+signature binds it to this repository's release workflow identity, so a verified checksums file
+plus a matching hash proves the archive came from this repo's CI. With `checksums.txt.bundle` from
+the release:
+
+```sh
+cosign verify-blob \
+  --bundle checksums.txt.bundle \
+  --certificate-identity-regexp 'https://github.com/shahriar-ferdoush/codemypaper/\.github/workflows/release\.yml@.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  checksums.txt
+```
+
+Each archive also has a `<archive>.sbom.json` sidecar — a syft-generated SBOM listing the exact
+module versions compiled into the binary.
+
 ## Usage
 
 ```
