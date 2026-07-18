@@ -1,0 +1,23 @@
+# Curated linter set — few linters, each with a reason, rather than enable-all noise.
+version: "2"
+
+linters:
+  default: none
+  enable:
+    # Correctness: the stdlib's own suspicious-construct analyzer (printf args, struct tags, ...).
+    - govet
+    # Deep correctness + simplification analysis; the strongest general Go analyzer (bundles the old gosimple/stylecheck).
+    - staticcheck
+    # Unhandled error returns are Go's #1 footgun; this codebase's error discipline (typed errors -> exit codes) depends on never dropping one silently.
+    - errcheck
+    # Style and naming (successor to golint); keeps exported identifiers documented-by-convention.
+    - revive
+    # Security lint: this program writes model-named files and shells out to python3 — exactly gosec's territory.
+    - gosec
+
+formatters:
+  enable:
+    # Formatting is a gate, not a debate.
+    - gofmt
+    # goimports = gofmt + import grouping/ordering.
+    - goimports

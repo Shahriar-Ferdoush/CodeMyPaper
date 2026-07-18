@@ -106,15 +106,15 @@ func TestCapOutput(t *testing.T) {
 	// Expected output - truncated to max bytes plus a marker naming the omitted byte count
 	t.Run("over cap", func(t *testing.T) {
 		s := strings.Repeat("a", 100)
-		max := 10
-		got := capOutput(s, max)
+		limit := 10
+		got := capOutput(s, limit)
 
-		if !strings.HasPrefix(got, s[:max]) {
-			t.Fatalf("capOutput result does not start with the first %d bytes", max)
+		if !strings.HasPrefix(got, s[:limit]) {
+			t.Fatalf("capOutput result does not start with the first %d bytes", limit)
 		}
-		wantOmitted := len(s) - max
+		wantOmitted := len(s) - limit
 		if !strings.Contains(got, "... [output truncated: "+strconv.Itoa(wantOmitted)+" bytes omitted]") {
-			t.Fatalf("capOutput(%q, %d) = %q, missing truncation marker for %d bytes", s, max, got, wantOmitted)
+			t.Fatalf("capOutput(%q, %d) = %q, missing truncation marker for %d bytes", s, limit, got, wantOmitted)
 		}
 	})
 }

@@ -51,7 +51,7 @@ func extractEprintTeX(gz []byte) (string, bool, error) {
 	if err != nil {
 		return "", false, fmt.Errorf("e-print: gunzip: %w", err)
 	}
-	defer zr.Close()
+	defer zr.Close() //nolint:errcheck // read-only gzip reader; close only frees buffers
 
 	dec, err := io.ReadAll(zr)
 	if err != nil {

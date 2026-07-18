@@ -31,7 +31,7 @@ type Gemini struct {
 	client  *http.Client
 }
 
-// Creates a Gemini client for the given hosted model id, reading the API key
+// NewGemini creates a Gemini client for the given hosted model id, reading the API key
 // from GEMINI_API_KEY.
 func NewGemini(model string) *Gemini {
 	return &Gemini{
@@ -42,7 +42,7 @@ func NewGemini(model string) *Gemini {
 	}
 }
 
-// Returns a human-readable identifier for this backend, used in logs.
+// Name returns a human-readable identifier for this backend, used in logs.
 func (g *Gemini) Name() string { return "Gemini: " + g.Model }
 
 // geminiPart, geminiContent, geminiReq, geminiResp are the JSON shapes the
@@ -72,7 +72,7 @@ type geminiResp struct {
 	} `json:"error"`
 }
 
-// Sends messages to the generateContent endpoint and returns the reply text.
+// Chat sends messages to the generateContent endpoint and returns the reply text.
 // Input:
 //   - ctx: context.Context for cancellation and deadlines
 //   - messages: the conversation so far
@@ -102,7 +102,7 @@ func (g *Gemini) Chat(ctx context.Context, messages []Message) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrBackendUnreachable, err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // read-only body; close error carries no signal
 
 	data, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 	if err != nil {

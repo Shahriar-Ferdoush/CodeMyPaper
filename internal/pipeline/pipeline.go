@@ -1,3 +1,5 @@
+// Package pipeline drives the fixed two-call generate→test→repair→test run:
+// reply parsing, guardrails, file writes, and the smoke-test subprocess.
 package pipeline
 
 import (
@@ -44,7 +46,7 @@ type Outcome struct {
 // errMalformed marks a reply that stayed unusable after the corrective re-prompt.
 var errMalformed = errors.New("malformed model reply")
 
-// Drives the fixed two-call pipeline: generate → write files → smoke-test →
+// Run drives the fixed two-call pipeline: generate → write files → smoke-test →
 // on failure one debug call → re-test. Control flow lives here, not in the model;
 // the model is called at most twice (plus at most one corrective re-prompt per call).
 // Input:
@@ -300,11 +302,11 @@ func writeFiles(outDir string, files []File, rep *impDetails, logger *log.Logger
 			return fmt.Errorf("write %q: %w", f.Name, err)
 		}
 		if dir := filepath.Dir(path); dir != outDir {
-			if err := os.MkdirAll(dir, 0o755); err != nil {
+			if err := os.MkdirAll(dir, 0o750); err != nil {
 				return fmt.Errorf("write %q: %w", f.Name, err)
 			}
 		}
-		if err := os.WriteFile(path, []byte(f.Content), 0o644); err != nil {
+		if err := os.WriteFile(path, []byte(f.Content), 0o600); err != nil {
 			return fmt.Errorf("write %q: %w", f.Name, err)
 		}
 		logger.Debugf("wrote %s (%d bytes)", f.Name, len(f.Content))

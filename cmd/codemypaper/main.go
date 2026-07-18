@@ -1,3 +1,5 @@
+// Command codemypaper turns an arXiv paper into a runnable Python/PyTorch
+// reference implementation via a fixed two-call LLM pipeline.
 package main
 
 import (
@@ -40,7 +42,7 @@ func versionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Print the version of CodeMyPaper",
-		Run: func(cmd *cobra.Command, _ []string) {
+		Run: func(_ *cobra.Command, _ []string) {
 			fmt.Println(version)
 		},
 	}
@@ -79,7 +81,7 @@ func runCmd() *cobra.Command {
 			if outDir == "" {
 				outDir = filepath.Join("out", id)
 			}
-			if err := os.MkdirAll(outDir, 0o755); err != nil {
+			if err := os.MkdirAll(outDir, 0o750); err != nil {
 				return exitErr(3, fmt.Errorf("create out dir: %w", err))
 			}
 
@@ -88,7 +90,7 @@ func runCmd() *cobra.Command {
 			if err := logger.AttachFile(filepath.Join(outDir, "run.log")); err != nil {
 				logger.Errorf("could not attach log file: %v", err)
 			}
-			defer logger.Close()
+			defer logger.Close() //nolint:errcheck // run is over when this fires; nowhere to report a close failure
 
 			paper, err := loadOrFetchPaper(ctx, logger, outDir, id, args[0], refetch)
 			if err != nil {
@@ -184,7 +186,7 @@ func loadOrFetchPaper(ctx context.Context, logger *log.Logger, outDir, id, idOrU
 //   - bool: whether the cache hit
 func loadCachedPaper(logger *log.Logger, outDir, id string) (*arxiv.Paper, bool) {
 	metaPath := filepath.Join(outDir, cacheMetaName)
-	metaBytes, err := os.ReadFile(metaPath)
+	metaBytes, err := os.ReadFile(metaPath) // #nosec G304 -- path is our own sidecar under the out dir, not model/user input
 	if err != nil {
 		return nil, false // no cache yet — the common case, not worth logging
 	}
@@ -195,7 +197,7 @@ func loadCachedPaper(logger *log.Logger, outDir, id string) (*arxiv.Paper, bool)
 		return nil, false
 	}
 
-	raw, err := os.ReadFile(filepath.Join(outDir, meta.RawName))
+	raw, err := os.ReadFile(filepath.Join(outDir, meta.RawName)) // #nosec G304 -- filename comes from our own sidecar, confined to the out dir
 	if err != nil {
 		logger.Warnf("cache: raw source %s missing, fetching fresh: %v", meta.RawName, err)
 		return nil, false
@@ -235,7 +237,7 @@ func persistPaper(logger *log.Logger, outDir string, paper *arxiv.Paper) {
 	}
 
 	rawPath := filepath.Join(outDir, paper.RawName)
-	if err := os.WriteFile(rawPath, paper.Raw, 0o644); err != nil {
+	if err := os.WriteFile(rawPath, paper.Raw, 0o600); err != nil {
 		logger.Warnf("could not save fetched source: %v", err)
 		return
 	}
@@ -252,7 +254,7 @@ func persistPaper(logger *log.Logger, outDir string, paper *arxiv.Paper) {
 		logger.Warnf("could not encode cache metadata: %v", err)
 		return
 	}
-	if err := os.WriteFile(filepath.Join(outDir, cacheMetaName), metaBytes, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(outDir, cacheMetaName), metaBytes, 0o600); err != nil {
 		logger.Warnf("could not save cache metadata: %v", err)
 	}
 }

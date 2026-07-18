@@ -151,7 +151,7 @@ func writeFenced(b *strings.Builder, s string) {
 //   - logger: run logger
 func writeArtifact(outDir, name, content string, logger *log.Logger) {
 	path := filepath.Join(outDir, name)
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		logger.Errorf("could not write %s: %v", name, err)
 		return
 	}
