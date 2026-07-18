@@ -79,15 +79,15 @@ func runSmokeTest(ctx context.Context, dir string, timeout time.Duration, logger
 // Truncates s to max bytes, appending a notice of how much was omitted.
 // Input:
 //   - s: the text to cap
-//   - max: the byte limit
+//   - maxLen: the byte limit
 //
 // Output:
-//   - string: s unchanged if under max, otherwise truncated with a trailing notice
-func capOutput(s string, max int) string {
-	if len(s) <= max {
+//   - string: s unchanged if under maxLen, otherwise truncated with a trailing notice
+func capOutput(s string, maxLen int) string {
+	if len(s) <= maxLen {
 		return s
 	}
-	omitted := len(s) - max
-	head := strings.ToValidUTF8(s[:max], "")
+	omitted := len(s) - maxLen
+	head := strings.ToValidUTF8(s[:maxLen], "")
 	return head + fmt.Sprintf("\n... [output truncated: %d bytes omitted]", omitted)
 }

@@ -15,7 +15,7 @@ type Ollama struct {
 	Model string
 }
 
-// Creates an Ollama client for the given local model id, reading the host
+// NewOllama creates an Ollama client for the given local model id, reading the host
 // from OLLAMA_HOST (default http://localhost:11434).
 func NewOllama(model string) *Ollama {
 	host := os.Getenv("OLLAMA_HOST")
@@ -28,7 +28,7 @@ func NewOllama(model string) *Ollama {
 	}
 }
 
-// Returns a human-readable identifier for this backend, used in logs.
+// Name returns a human-readable identifier for this backend, used in logs.
 func (o *Ollama) Name() string {
 	return "Ollama: " + o.Model
 }
@@ -49,7 +49,7 @@ type ollamaResp struct {
 	Message ollamaMsg `json:"message"`
 }
 
-// Sends messages to the Ollama server's /api/chat endpoint and returns the reply text.
+// Chat sends messages to the Ollama server's /api/chat endpoint and returns the reply text.
 // Input:
 //   - ctx: context.Context for cancellation and deadlines
 //   - messages: the conversation so far
@@ -60,10 +60,7 @@ type ollamaResp struct {
 func (o *Ollama) Chat(ctx context.Context, messages []Message) (string, error) {
 	msgs := make([]ollamaMsg, len(messages))
 	for i, m := range messages {
-		msgs[i] = ollamaMsg{
-			Role:    m.Role,
-			Content: m.Content,
-		}
+		msgs[i] = ollamaMsg(m)
 	}
 
 	body, err := json.Marshal(ollamaReq{
@@ -85,7 +82,7 @@ func (o *Ollama) Chat(ctx context.Context, messages []Message) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("ollama unreachable (Is the Ollama server running?): %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // read-only body; close error carries no signal, i.e. we can't do anything about it
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("ollama returned non-200 status: %s", resp.Status)

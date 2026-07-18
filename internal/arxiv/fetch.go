@@ -32,7 +32,7 @@ var (
 	arxivAPIBase  = "https://export.arxiv.org/api/query?id_list="
 )
 
-// Resolves idOrURL and builds a Paper from the first source in the ladder
+// Fetch resolves idOrURL and builds a Paper from the first source in the ladder
 // that yields sections: arxiv.org/html → ar5iv mirror → e-print tarball.
 // Title and abstract always come from the arXiv API as a backstop.
 // Input:
@@ -143,7 +143,7 @@ func httpGet(ctx context.Context, target string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get %s: %w", target, err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // read-only body; close error carries no signal
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("get %s: status %s", target, resp.Status)

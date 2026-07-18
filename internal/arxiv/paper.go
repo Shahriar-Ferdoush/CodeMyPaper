@@ -40,7 +40,7 @@ func isMethodRelevant(heading string) bool {
 	return false
 }
 
-// Assembles the method-focused context handed to the model: title + abstract
+// PromptText assembles the method-focused context handed to the model: title + abstract
 // (always, as a backstop), followed by every MethodRelevant section.
 // Input:
 //   - maxChars: char budget to trim text to (0 = unlimited)
@@ -76,19 +76,19 @@ func (p *Paper) PromptText(maxChars int) (text string, truncated bool) {
 	return text, truncated
 }
 
-// Cuts s to at most max bytes without splitting a multi-byte rune.
+// Cuts s to at most maxBytes bytes without splitting a multi-byte rune.
 // Input:
 //   - s: the string to cut
-//   - max: the byte limit
+//   - maxBytes: the byte limit
 //
 // Output:
-//   - string: s truncated at the nearest rune boundary at or before max
-func truncateAtRune(s string, max int) string {
-	if max >= len(s) {
+//   - string: s truncated at the nearest rune boundary at or before maxBytes
+func truncateAtRune(s string, maxBytes int) string {
+	if maxBytes >= len(s) {
 		return s
 	}
-	for max > 0 && !utf8.RuneStart(s[max]) {
-		max--
+	for maxBytes > 0 && !utf8.RuneStart(s[maxBytes]) {
+		maxBytes--
 	}
-	return s[:max]
+	return s[:maxBytes]
 }

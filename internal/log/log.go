@@ -1,3 +1,5 @@
+// Package log is the run's leveled logger: console for live triage, an
+// attachable per-run file as the forensic record.
 package log
 
 import (
@@ -11,6 +13,7 @@ import (
 // Level is a logger's minimum severity to emit.
 type Level int
 
+// Severity levels, lowest to highest.
 const (
 	LevelDebug Level = iota
 	LevelInfo
@@ -30,7 +33,7 @@ type Logger struct {
 	file  *os.File
 }
 
-// Creates a Logger writing to w. verbose sets the minimum level to LevelDebug;
+// New creates a Logger writing to w. verbose sets the minimum level to LevelDebug;
 // otherwise it's LevelInfo.
 func New(w io.Writer, verbose bool) *Logger {
 	level := LevelInfo
@@ -40,7 +43,7 @@ func New(w io.Writer, verbose bool) *Logger {
 	return &Logger{w: w, level: level}
 }
 
-// Opens path (truncating any previous run's log) as a second sink that
+// AttachFile opens path (truncating any previous run's log) as a second sink that
 // records all levels. May be called at most once; a second call errors.
 func (l *Logger) AttachFile(path string) error {
 	if l == nil {
@@ -51,7 +54,7 @@ func (l *Logger) AttachFile(path string) error {
 	if l.file != nil {
 		return fmt.Errorf("log file already attached")
 	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600) // #nosec G304 -- path is the run's own log file under the out dir, chosen by our code
 	if err != nil {
 		return fmt.Errorf("open log file: %w", err)
 	}
@@ -59,7 +62,7 @@ func (l *Logger) AttachFile(path string) error {
 	return nil
 }
 
-// Closes the attached log file, if any.
+// Close closes the attached log file, if any.
 func (l *Logger) Close() error {
 	if l == nil {
 		return nil
@@ -89,11 +92,13 @@ func (l *Logger) logf(level Level, prefix, format string, args ...any) {
 	// format must be a literal string, never dynamic text (e.g. an LLM reply).
 	// Dynamic text can carry stray %-verbs and corrupt the line — pass it as an arg instead.
 	line := fmt.Sprintf(time.Now().Format(time.RFC3339)+" "+prefix+format+"\n", args...)
+	// Logging is best-effort by design: a sink write failure must not fail the
+	// run it describes, and there is no saner sink to report it to.
 	if l.w != nil && level >= l.level {
-		io.WriteString(l.w, line)
+		_, _ = io.WriteString(l.w, line)
 	}
 	if l.file != nil {
-		io.WriteString(l.file, line)
+		_, _ = io.WriteString(l.file, line)
 	}
 }
 
