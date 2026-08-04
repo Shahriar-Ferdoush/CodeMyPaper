@@ -1,0 +1,30 @@
+# Keeps the build context small: excluding .venv/ alone takes it 702M -> 2M.
+
+# Do NOT change to **/*.md: internal/pipeline/prompt.md is //go:embed'ed.
+# .dockerignore patterns are not recursive, so bare *.md is root-level only.
+*.md
+!internal/pipeline/prompt.md
+
+.venv/
+
+# Not needed to compile; VERSION arrives via --build-arg.
+.git/
+.gitignore
+.github/
+
+# Build outputs and run artifacts (docker_out/ is the bind-mount target).
+bin/
+dist/
+out/
+docker_out/
+
+# Root-level fixtures only; internal/arxiv/testdata/ stays.
+testdata/
+
+Dockerfile
+.dockerignore
+
+.DS_Store
+**/.DS_Store
+.idea/
+.vscode/
