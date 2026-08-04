@@ -4,13 +4,20 @@ on:
   push:
     tags: ["v*"]
 
-permissions:
-  contents: write
-  id-token: write
+# Granted per job below; GitHub has no way to subtract a permission.
+permissions: {}
+
+env:
+  # github.repository is mixed-case; registry paths must be lowercase.
+  GHCR_IMAGE: ghcr.io/shahriar-ferdoush/codemypaper
+  DOCKERHUB_IMAGE: docker.io/shahriarferdoush/codemypaper
 
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -26,3 +33,137 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # One native runner per architecture; no QEMU. Each leg pushes an untagged
+  # image and reports only its digest.
+  image:
+    needs: goreleaser
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # Strip the leading v: GoReleaser's {{.Version}} does, so this matches.
+      - id: version
+        run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          build-args: VERSION=${{ steps.version.outputs.value }}
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=${{ env.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          # Buildx would otherwise attach a SLSA attestation, making each push
+          # an index and breaking the merge below. SLSA is out of scope anyway.
+          provenance: false
+          cache-from: type=gha,scope=image-${{ matrix.arch }}
+          cache-to: type=gha,scope=image-${{ matrix.arch }}
+      # The filename is the digest; the file is empty. Matrix legs share one
+      # output key, so a job output cannot carry both.
+      - run: mkdir -p /tmp/digests && touch "/tmp/digests/${DIGEST#sha256:}"
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.arch }}
+          path: /tmp/digests/*
+          retention-days: 1
+
+  image-manifest:
+    needs: [goreleaser, image]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@v3
+      - uses: sigstore/cosign-installer@v3
+      - uses: anchore/sbom-action/download-syft@v0
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # A hyphen means a pre-release tag, which must not move :latest.
+      - id: tags
+        run: |
+          case "${GITHUB_REF_NAME}" in
+            *-*) echo "latest=false" >> "$GITHUB_OUTPUT" ;;
+            *)   echo "latest=true"  >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - id: ghcr
+        working-directory: /tmp/digests
+        run: |
+          set -euo pipefail
+          tags="--tag ${GHCR_IMAGE}:${GITHUB_REF_NAME}"
+          if [ "${LATEST}" = "true" ]; then tags="${tags} --tag ${GHCR_IMAGE}:latest"; fi
+          docker buildx imagetools create ${tags} $(printf "${GHCR_IMAGE}@sha256:%s " *)
+          digest=$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "${GHCR_IMAGE}:${GITHUB_REF_NAME}")
+          case "${digest}" in sha256:*) ;; *) echo "bad digest: ${digest}" >&2; exit 1 ;; esac
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+        env:
+          LATEST: ${{ steps.tags.outputs.latest }}
+
+      # Registry-to-registry copy of the finished index; no rebuild.
+      - id: dockerhub
+        run: |
+          set -euo pipefail
+          tags="--tag ${DOCKERHUB_IMAGE}:${GITHUB_REF_NAME}"
+          if [ "${LATEST}" = "true" ]; then tags="${tags} --tag ${DOCKERHUB_IMAGE}:latest"; fi
+          docker buildx imagetools create ${tags} "${GHCR_IMAGE}@${GHCR_DIGEST}"
+          digest=$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "${DOCKERHUB_IMAGE}:${GITHUB_REF_NAME}")
+          case "${digest}" in sha256:*) ;; *) echo "bad digest: ${digest}" >&2; exit 1 ;; esac
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+        env:
+          LATEST: ${{ steps.tags.outputs.latest }}
+          GHCR_DIGEST: ${{ steps.ghcr.outputs.digest }}
+
+      # Sign the index digest, not the per-arch children: `cosign verify <tag>`
+      # resolves the tag to the index and looks for a signature on that.
+      - run: |
+          cosign sign --yes "${GHCR_IMAGE}@${GHCR_DIGEST}"
+          cosign sign --yes "${DOCKERHUB_IMAGE}@${DOCKERHUB_DIGEST}"
+        env:
+          GHCR_DIGEST: ${{ steps.ghcr.outputs.digest }}
+          DOCKERHUB_DIGEST: ${{ steps.dockerhub.outputs.digest }}
+
+      # Scanned on amd64; torch/numpy are pinned identically for both arches.
+      - run: syft scan --platform linux/amd64 -o spdx-json=sbom.spdx.json "${GHCR_IMAGE}@${GHCR_DIGEST}"
+        env:
+          GHCR_DIGEST: ${{ steps.ghcr.outputs.digest }}
+
+      - run: |
+          cosign attest --yes --type spdxjson --predicate sbom.spdx.json "${GHCR_IMAGE}@${GHCR_DIGEST}"
+          cosign attest --yes --type spdxjson --predicate sbom.spdx.json "${DOCKERHUB_IMAGE}@${DOCKERHUB_DIGEST}"
+        env:
+          GHCR_DIGEST: ${{ steps.ghcr.outputs.digest }}
+          DOCKERHUB_DIGEST: ${{ steps.dockerhub.outputs.digest }}
