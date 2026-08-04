@@ -1,5 +1,6 @@
 # generated output, build artifacts, python env
 out/
+docker_out/
 bin/
 dist/
 .venv/
