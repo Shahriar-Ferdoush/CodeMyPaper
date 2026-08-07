@@ -124,7 +124,7 @@ func runCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&model, "model", "gemini", "backend: gemini or ollama")
-	cmd.Flags().StringVar(&geminiModel, "gemini-model", "gemini-2.5-flash", "hosted model id (gemini backend)")
+	cmd.Flags().StringVar(&geminiModel, "gemini-model", "gemini-3.1-flash-light", "hosted model id (gemini backend)")
 	cmd.Flags().StringVar(&ollamaModel, "ollama-model", "qwen2.5-coder:3b", "local model id (ollama backend)")
 	cmd.Flags().StringVar(&outDir, "out", "", "output directory; defaults to ./out/<arxiv-id>")
 	cmd.Flags().DurationVar(&testTimeout, "timeout", 120*time.Second, "smoke-test timeout")

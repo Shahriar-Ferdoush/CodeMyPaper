@@ -22,7 +22,7 @@ type Message struct {
 
 // LLMClient is the single seam to any chat backend.
 //
-//nolint:revive // "llm.LLMClient" stutters, but the name is the documented seam across DESIGN.md/README; renaming buys nothing
+//nolint:revive // "llm.LLMClient" stutters, but the name is the documented seam across docs/DESIGN.md/README; renaming buys nothing
 type LLMClient interface {
 	// Sends the conversation so far and returns the reply text.
 	Chat(ctx context.Context, messages []Message) (string, error)
