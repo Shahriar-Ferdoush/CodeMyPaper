@@ -5,7 +5,7 @@ bin/
 dist/
 .venv/
 *.md
-!internal/agent/prompt.md
+!internal/pipeline/prompt.md
 
 # macOS
 .DS_Store
