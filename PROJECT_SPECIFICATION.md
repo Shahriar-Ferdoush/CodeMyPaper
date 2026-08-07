@@ -1,7 +1,7 @@
 # CodeMyPaper — Project Specification
 
 Requirements contract for v1: what the system must do and how that is verified. Architecture and
-design rationale are in [`DESIGN.md`](./DESIGN.md). Section 10 is the definition of done; every
+design rationale are in [`DESIGN.md`](./docs/DESIGN.md). Section 10 is the definition of done; every
 criterion in it is checkable against observable behavior rather than code structure.
 
 ## 1. Overview
@@ -73,7 +73,7 @@ codemypaper version
 | Flag                  | Default            | Meaning                                                           |
 | --------------------- | ------------------ | ----------------------------------------------------------------- |
 | `--model`             | `gemini`           | Chat backend: `gemini` or `ollama`.                               |
-| `--gemini-model`      | `gemini-2.5-flash` | Hosted chat model id.                                             |
+| `--gemini-model`      | `gemini-3.1-flash-light` | Hosted chat model id.                                       |
 | `--ollama-model`      | `qwen2.5-coder:3b` | Local chat model id.                                              |
 | `--out`               | `./out/<arxiv-id>` | Output directory.                                                 |
 | `--timeout`           | `120s`             | Smoke-test timeout.                                               |
@@ -84,7 +84,7 @@ codemypaper version
 The generation target is Python/PyTorch only in v1; there is no `--lang` flag (section 8). There
 is no iteration cap: a run makes at most two model calls (generate and repair), each with at most
 one corrective re-prompt, so the request count is bounded by construction. Per-flag default
-rationale is documented in `DESIGN.md`.
+rationale is documented in `docs/DESIGN.md`.
 
 **Exit codes.** Each code is a distinct, scriptable outcome:
 
@@ -185,21 +185,21 @@ Ollama server only when using `--model ollama`.
 
 - DR4 — Every push and pull request runs format checking, `go vet`, `golangci-lint`, and
   `go test -race -cover` on Linux and macOS via GitHub Actions. Go dependencies are scanned with
-  `govulncheck`. Dependencies and workflow actions are kept current by Dependabot, and workflow
-  actions are pinned to commit SHAs.
+  `govulncheck`. Dependencies and workflow actions are kept current by Dependabot.
 
 ### 9.3 Releases
 
 - DR5 — Pushing a `v*` tag produces a GitHub Release containing darwin/linux × amd64/arm64
-  binaries and a checksums file. The released binary's `version` command prints the tag (injected
-  at build time via ldflags). Each release archive is accompanied by an SBOM, and the checksums
+  binaries and a checksums file. The released binary's `version` command prints the release version
+  (the tag without its leading `v`, injected at build time via ldflags). Each release archive is accompanied by an SBOM, and the checksums
   file is signed with cosign using the release workflow's OIDC identity (keyless; no long-lived
   signing key).
 
 ### 9.4 Container image
 
 - DR6 — Each release publishes a multi-stage image (statically compiled Go binary on
-  `python:3.12-slim`, running as a non-root user) to GHCR. A containerized run completes a passing
+  `python:3.12-slim`, running as a non-root user) for linux/amd64 and linux/arm64 to GHCR and to
+  Docker Hub, with GHCR as the reference path. A containerized run completes a passing
   smoke test. The container is the supported way to run untrusted papers: it provides kernel-level
   isolation that the NFR1–NFR4 process-level guardrails deliberately do not. The published image is
   cosign-signed by digest and carries an SBOM covering the image's full contents (the Go binary's
@@ -247,9 +247,10 @@ Ollama server only when using `--model ollama`.
   is live (DR4).
 - `git tag v0.1.0` produces a Release with four binaries plus checksums, SBOMs, and a cosign
   signature on the checksums file that verifies against the workflow identity; the downloaded
-  binary prints `v0.1.0` (DR5).
-- `docker run ghcr.io/shahriar-ferdoush/codemypaper:v0.1.0` completes a passing containerized
-  run as a non-root user; `cosign verify` succeeds on the published image digest (DR6).
+  binary prints `0.1.0` (DR5).
+- `docker run ghcr.io/shahriar-ferdoush/codemypaper:v0.2.0` completes a passing containerized
+  run as a non-root user; `cosign verify` and `cosign verify-attestation` succeed on the published
+  image digest in each registry (DR6).
 
 **Verification commands**
 
@@ -260,5 +261,8 @@ codemypaper run 2401.XXXXX --model ollama --verbose          # offline pipeline 
 GEMINI_API_KEY=… codemypaper run <pinned-id> --model gemini  # hosted run to green
 ( cd out/<pinned-id> && python3 smoke_test.py )              # exits 0
 make install                                                 # fresh clone → working binary
-docker run --rm ghcr.io/shahriar-ferdoush/codemypaper:v0.1.0 version
+docker run --rm ghcr.io/shahriar-ferdoush/codemypaper:v0.2.0 version
+cosign verify --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp 'https://github.com/Shahriar-Ferdoush/codemypaper/.github/workflows/release.yml@refs/tags/.*' \
+  ghcr.io/shahriar-ferdoush/codemypaper@sha256:<digest>
 ```
