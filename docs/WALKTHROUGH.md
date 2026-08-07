@@ -31,7 +31,7 @@ main()                                                          cmd/codemypaper/
          │   // --model="gemini" + model-id flags → an llm.LLMClient consumed by pipeline.Run;
          │   // a value that isn't gemini/ollama → exit 2
          │   └─ llm.NewGemini(geminiModel)                      internal/llm/gemini.go
-         │       // model id "gemini-3.1-flash-light" → *Gemini holding GEMINI_API_KEY from env;
+         │       // model id "gemini-3.1-flash-lite" → *Gemini holding GEMINI_API_KEY from env;
          │       // no network call yet — key checked at first Chat
          │
          ├─ arxiv.ParseID(args[0])                              internal/arxiv/parse.go:27

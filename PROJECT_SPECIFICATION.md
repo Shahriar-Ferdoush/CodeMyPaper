@@ -73,7 +73,7 @@ codemypaper version
 | Flag                  | Default            | Meaning                                                           |
 | --------------------- | ------------------ | ----------------------------------------------------------------- |
 | `--model`             | `gemini`           | Chat backend: `gemini` or `ollama`.                               |
-| `--gemini-model`      | `gemini-3.1-flash-light` | Hosted chat model id.                                       |
+| `--gemini-model`      | `gemini-3.1-flash-lite` | Hosted chat model id.                                       |
 | `--ollama-model`      | `qwen2.5-coder:3b` | Local chat model id.                                              |
 | `--out`               | `./out/<arxiv-id>` | Output directory.                                                 |
 | `--timeout`           | `120s`             | Smoke-test timeout.                                               |

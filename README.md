@@ -69,7 +69,7 @@ The input can be a bare id (`2401.01234`), an `abs/` or `pdf/` URL, with or with
 | Flag | Default | Meaning |
 |---|---|---|
 | `--model` | `gemini` | chat backend: `gemini` or `ollama` |
-| `--gemini-model` | `gemini-3.1-flash-light` | hosted model id |
+| `--gemini-model` | `gemini-3.1-flash-lite` | hosted model id |
 | `--ollama-model` | `qwen2.5-coder:3b` | local model id |
 | `--out` | `./out/<id>` | output directory |
 | `--timeout` | `2m` | smoke-test timeout |
