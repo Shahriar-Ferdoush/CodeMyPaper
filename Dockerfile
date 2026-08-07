@@ -52,7 +52,7 @@ WORKDIR /work
 USER runner
 
 # GHCR reads this to link the published package to the repo.
-LABEL org.opencontainers.image.source="https://github.com/Shahriar-Ferdoush/CodeMyPaper"
+LABEL org.opencontainers.image.source="https://github.com/Shahriar-Ferdoush/codemypaper"
 
 ENTRYPOINT ["codemypaper"]
 CMD ["--help"]
